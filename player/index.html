@@ -1,18 +1,117 @@
 <!DOCTYPE html>
-<html>
-<head>
-    <meta charset='utf-8'>
-    <title>KinoLink</title>
-</head>
-<body>
-    <div id="mainContainer">
-        <div id="header">
+<html lang="ru">
 
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KinoLink by VOID</title>
+    <link rel="icon" href="assets/play.png">
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <div id="container">
+
+        <!-- Player header -->
+        <header id="header">
+            <button id="watched-toggle" type="button" aria-haspopup="listbox" aria-expanded="false" aria-label="Просмотренные фильмы" title="Просмотренные">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M3 5h18M3 12h18M3 19h18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+            </button>
+            <button id="settings-toggle" type="button" aria-label="Настройки" title="Настройки">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="2"/>
+                    <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+            </button>
+            <div id="logo">
+                <img src="assets/play.png" alt="KinoLink Logo">
+            </div>
+            <div id="title">...</div>
+        </header>
+        <div id="sidebar" role="complementary" aria-label="Просмотренные фильмы">
+            <div id="sidebar-head">
+                <span>Просмотренные</span>
+                <button id="sidebar-close" type="button" aria-label="Закрыть панель">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                    </svg>
+                </button>
+            </div>
+            <div id="watched-list"></div>
         </div>
 
-        <div id="player">
+        <!-- Playback area -->
+        <div id="content">
+            <div class="loader"></div>
+        </div>
 
+        <!-- Player sources (sliding accent indicator) -->
+        <div id="sources" role="tablist" aria-label="Источники воспроизведения"></div>
+    </div>
+
+    <!-- Background -->
+    <div id="background"></div>
+
+    <!-- Footer (bottom-center, semi-transparent) -->
+    <div id="footer">
+        <div class="caption">приятного просмотра</div>
+        <div class="made-by">Made by VOID</div>
+    </div>
+
+    <!-- Player settings panel (floating, outside container) -->
+    <div id="settings-panel" style="position: fixed; top: 1rem; right: 1rem; z-index: 30; min-width: 200px;">
+        <div id="settings-panel-head">
+            <span>Тема</span>
+            <button type="button" id="settings-close" aria-label="Закрыть настройки">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                </button>
+            </button>
+        </div>
+        <div id="theme-list">
+            <button type="button" class="theme-option" data-theme="black" aria-label="Тёмная тема">
+                <span class="theme-name">Тёмная</span>
+            </button>
+            <button type="button" class="theme-option" data-theme="oled" aria-label="Dark OLED тема">
+                <span class="theme-name">Dark OLED</span>
+            </button>
+            <button type="button" class="theme-option" data-theme="purple" aria-label="Фиолетовая тема">
+                <span class="theme-name">Фиолетовая</span>
+            </button>
         </div>
     </div>
+
+    <!-- Templates -->
+    <template id="initialization-error-message">
+        <div class="message error">
+            <p>
+                Произошла ошибка во время запуска плеера. Проверьте консоль разработчика.
+            </p>
+        </div>
+    </template>
+
+    <template id="script-error-message">
+        <div class="message error">
+            <p>
+                Похоже что плеер так и не был инициализирован. Проверьте, установлена ли у вас актуальная версия скрипта.
+            </p>
+        </div>
+    </template>
+
+    <template id="server-unavailable-message">
+        <div class="message error">
+            <p>
+                Похоже что сервер в данный момент недоступен. Попробуйте обновить страницу или попробовать позже.
+            </p>
+        </div>
+    </template>
+
+    <!-- Player code -->
+    <script src="config.js"></script>
+    <script src="utils.js"></script>
+    <script src="player.js"></script>
 </body>
+
 </html>
