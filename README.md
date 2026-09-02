@@ -40,7 +40,7 @@ cd KinoLink_by_VOID
 **Tampermonkey / Violentmonkey / Greasemonkey:**
 
 1. Установите расширение для userscript (например, [Tampermonkey](https://www.tampermonkey.net/))
-2. Создайте новый скрипт и вставьте содержимое `userscript/kinolink.user.js`
+2. Установите скрипт, перейдя по [этой ссылке](https://github.com/Est-Void/KinoLink_by_VOID/raw/main/userscript/kinolink.user.js). _(либо скачайте `userscript/kinolink.user.js` из репозитория и установите вручную)_
 3. Убедитесь, что `@match *://www.kinopoisk.ru/*` указан корректно
 4. На страницах Кинопоиска появится кнопка «Смотреть»
 
