@@ -16,6 +16,11 @@ BROWSER_UA = 'Mozilla/5.0 (X11; Linux x86_64; rv:154.0) Gecko/20100101 Firefox/1
 
 
 class Handler(SimpleHTTPRequestHandler):
+    def send_response(self, code, message=None):
+        super().send_response(code, message)
+        if not self.path.startswith('/api/kinobox') and not self.path.startswith('/cover'):
+            self.send_header('Cache-Control', 'no-store, max-age=0')
+
     def do_GET(self):
         if self.path.startswith('/api/kinobox'):
             self._kinobox_proxy()

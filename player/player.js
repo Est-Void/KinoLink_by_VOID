@@ -10,11 +10,12 @@ const backgroundElement = document.getElementById('background');
 const watchedToggleElement = document.getElementById('watched-toggle');
 const watchedListElement = document.getElementById('watched-list');
 const sidebarElement = document.getElementById('sidebar');
-const sidebarCloseElement = document.getElementById('sidebar-close');
-const settingsToggleElement = document.getElementById('settings-toggle');
-const settingsPanelElement = document.getElementById('settings-panel');
-const settingsCloseElement = document.getElementById('settings-close');
-const themeOptions = settingsPanelElement?.querySelectorAll('.theme-option');
+const sidebarCloseElement = document.querySelector('#sidebar .sidebar-close');
+const sortToggleElement = document.getElementById('sort-toggle');
+const themeToggleElement = document.getElementById('theme-toggle');
+const themeSidebarElement = document.getElementById('theme-sidebar');
+const themeCloseElement = document.querySelector('#theme-sidebar .sidebar-close');
+const themeListElement = document.getElementById('theme-list');
 
 let currentMovieKey = getSearchParam('movie') ?? '';
 let currentTitle = '';
@@ -24,9 +25,27 @@ let currentSources = [];
 let currentEpisode = null;
 
 const WATCHED_KEY = 'kinolink-watched-movies';
+const WATCHED_SORT_KEY = 'kinolink-watched-sort';
 const THEME_KEY = 'kinolink-theme';
 
-let currentTheme = localStorage.getItem(THEME_KEY) || 'black';
+const THEMES = {
+	violet: { label: 'Виолетовая', description: 'тёмная с фиолетовым акцентом' },
+	graphite: { label: 'Тёмно-серая', description: 'спокойная стальная гамма' },
+	oled: { label: 'OLED', description: 'чистый чёрный, без фонов' },
+	estvoid: { label: 'est-Void', description: 'инженерный минимализм' },
+};
+
+const THEME_CLASS = {
+	violet: 'theme-violet',
+	graphite: 'theme-graphite',
+	oled: 'theme-oled',
+	estvoid: 'theme-estvoid',
+};
+
+const LEGACY_THEME = { black: 'violet', purple: 'violet' };
+
+let currentTheme = normalizeTheme(localStorage.getItem(THEME_KEY) || 'violet');
+let watchedSort = localStorage.getItem(WATCHED_SORT_KEY) === 'desc' ? 'desc' : 'asc';
 
 /**
  * @typedef {object} MovieData
@@ -39,8 +58,8 @@ let currentTheme = localStorage.getItem(THEME_KEY) || 'black';
  */
 
 const initializationTimeoutTimer = setTimeout(() => {
-	showScriptErrorMessage();
 	logger.error('Initialization timeout');
+	showMessage('Плеер не инициализировался. Обновите страницу и проверьте, что установлена актуальная версия скрипта.', 'error');
 }, 5000);
 
 /**
@@ -76,17 +95,16 @@ async function init(data, scriptVersion) {
 			sources = await fetchSources(movieData);
 		} catch (error) {
 			if (error?.message === 'NOT_FOUND') {
-				showPlayerText('Не удалось найти IMDb id для этого фильма');
+				showPlayerText('Не удалось определить IMDb id для этого фильма');
 				return;
 			}
-			showPlayerText(':(');
-			showServerUnavailableMessage();
 			logger.error('Error fetching data from server', error);
+			showMessage('Источники временно недоступны. Попробуйте обновить страницу или открыть фильм позже.', 'error');
 			return;
 		}
 
 		if (sources.length === 0) {
-			showPlayerText('Movie not found :(');
+			showPlayerText('Источник не найден. Проверьте, что фильм доступен на Кинопоиске.');
 			return;
 		}
 
@@ -99,9 +117,8 @@ async function init(data, scriptVersion) {
 
 		backgroundElement.classList.add('visible');
 	} catch (error) {
-		showPlayerText(':(');
 		logger.error('Error during initialization', error);
-		showInitializationErrorMessage();
+		showMessage('Произошла ошибка во время запуска плеера.', 'error');
 	}
 }
 
@@ -445,10 +462,6 @@ function fitPlayerFrame() {
 	frame.style.width = `${Math.floor(width)}px`;
 }
 
-/**
- * Update the title of the player
- * @param {string} title
- */
 function setTitle(title) {
 	currentTitle = title;
 	document.title = `${title} | KinoLink`;
@@ -457,26 +470,65 @@ function setTitle(title) {
 	}
 }
 
-/**
- * Apply the selected theme to the document.
- * @param {string} theme
- */
-function applyTheme(theme) {
-	currentTheme = theme;
-	document.body.classList.remove('theme-purple', 'theme-oled');
-	localStorage.setItem(THEME_KEY, theme);
-	settingsPanelElement?.querySelectorAll('.theme-option').forEach((option) => {
-		option.classList.toggle('active', option.dataset.theme === theme);
-	});
-	document.body.classList.toggle('theme-purple', theme === 'purple');
-	document.body.classList.toggle('theme-oled', theme === 'oled');
+function normalizeTheme(theme) {
+	if (THEME_CLASS[theme]) return theme;
+	if (LEGACY_THEME[theme]) return LEGACY_THEME[theme];
+	return 'violet';
 }
 
-/**
- * Cache movie data in local storage
- * @param {MovieData} movieData
- * @returns {string} The key used to cache the data
- */
+function updateThemeOptionStates() {
+	themeListElement?.querySelectorAll('.theme-option').forEach((option) => {
+		const active = option.dataset.theme === currentTheme;
+		option.classList.toggle('active', active);
+		option.setAttribute('aria-pressed', String(active));
+	});
+}
+
+function applyTheme(theme) {
+	currentTheme = normalizeTheme(theme);
+	document.body.classList.remove(...Object.values(THEME_CLASS));
+	document.body.classList.add(THEME_CLASS[currentTheme]);
+	localStorage.setItem(THEME_KEY, currentTheme);
+	updateThemeOptionStates();
+}
+
+function renderThemeOptions() {
+	if (!themeListElement) return;
+	themeListElement.innerHTML = '';
+	Object.entries(THEMES).forEach(([id, meta]) => {
+		const option = document.createElement('button');
+		option.type = 'button';
+		option.dataset.theme = id;
+		option.className = 'theme-option';
+		option.setAttribute('aria-pressed', String(id === currentTheme));
+
+		const name = document.createElement('span');
+		name.className = 'theme-name';
+		name.textContent = meta.label;
+
+		const desc = document.createElement('span');
+		desc.className = 'theme-desc';
+		desc.textContent = meta.description;
+
+		option.append(name, desc);
+		option.addEventListener('click', () => applyTheme(id));
+		themeListElement.appendChild(option);
+	});
+	updateThemeOptionStates();
+}
+
+function toggleThemeSidebar(open) {
+	if (!themeSidebarElement) return;
+	const willOpen = open ?? !themeSidebarElement.classList.contains('open');
+	if (willOpen) {
+		toggleSidebar(false);
+		renderThemeOptions();
+	}
+	themeSidebarElement.classList.toggle('open', willOpen);
+	themeToggleElement?.setAttribute('aria-expanded', String(willOpen));
+	themeToggleElement?.classList.toggle('active', willOpen);
+}
+
 function cacheMovieData(movieData) {
 	const serialized = JSON.stringify(movieData);
 	const key = hashCode(serialized);
@@ -505,36 +557,38 @@ function parseMovieData(data) {
 }
 
 /**
- * Show initialization error message
+ * Show a dismissible notification inside the player.
+ * @param {string} text The notification text
+ * @param {'error' | undefined} [type] Message style
+ * @returns {HTMLElement} The message element
  */
-function showInitializationErrorMessage() {
-	const template = document.getElementById('initialization-error-message').content.cloneNode(true);
-	containerElement.appendChild(template);
+function showMessage(text, type) {
+	const message = document.createElement('div');
+	message.className = type === 'error' ? 'message error' : 'message';
+
+	const body = document.createElement('p');
+	body.textContent = text;
+	message.appendChild(body);
+
+	const close = document.createElement('button');
+	close.type = 'button';
+	close.className = 'message-close';
+	close.setAttribute('aria-label', 'Закрыть');
+	close.textContent = '×';
+	close.addEventListener('click', () => message.remove());
+	message.appendChild(close);
+
+	containerElement.appendChild(message);
+	return message;
 }
 
 /**
- * Show script error message
- */
-function showScriptErrorMessage() {
-	const template = document.getElementById('script-error-message').content.cloneNode(true);
-	containerElement.appendChild(template);
-}
-
-/**
- * Show server unavailable message. Used when the API is down.
- */
-function showServerUnavailableMessage() {
-	const template = document.getElementById('server-unavailable-message').content.cloneNode(true);
-	containerElement.appendChild(template);
-}
-
-/**
- * Show message inside the player
+ * Show plain text inside the player frame.
  * @param {string} messageText The message to display
  */
 function showPlayerText(messageText) {
 	const playerTextElement = document.createElement('span');
-	playerTextElement.innerHTML = messageText;
+	playerTextElement.textContent = messageText;
 	playerTextElement.style.animation = 'fadeIn 0.3s ease both';
 
 	contentElement.innerHTML = '';
@@ -647,9 +701,14 @@ function renderWatchedMovies() {
 		return;
 	}
 
+	const direction = watchedSort === 'desc' ? -1 : 1;
+	const sorted = watched
+		.map((movie) => ({ ...movie }))
+		.sort((a, b) => (a.title || '').localeCompare(b.title || '', 'ru', { sensitivity: 'base' }) * direction);
+
 	const fragment = document.createDocumentFragment();
 
-	watched.forEach((movie) => {
+	sorted.forEach((movie) => {
 		const item = document.createElement('button');
 		item.type = 'button';
 		item.className = 'watched-item';
@@ -724,8 +783,25 @@ function toggleSidebar(open) {
 	const isOpen = sidebarElement?.classList.toggle('open', open);
 	watchedToggleElement?.classList.toggle('active', open);
 	if (watchedToggleElement) watchedToggleElement.setAttribute('aria-expanded', String(open));
-	if (open) renderWatchedMovies();
+	if (open) {
+		toggleThemeSidebar(false);
+		renderWatchedMovies();
+	}
 	return isOpen;
+}
+
+function updateSortToggleLabel() {
+	if (!sortToggleElement) return;
+	const ascending = watchedSort === 'asc';
+	sortToggleElement.textContent = ascending ? 'A–Z' : 'Z–A';
+	sortToggleElement.setAttribute('aria-label', ascending ? 'Порядок: по алфавиту (A–Z)' : 'Порядок: в обратном алфавиту (Z–A)');
+}
+
+function toggleWatchedSort() {
+	watchedSort = watchedSort === 'asc' ? 'desc' : 'asc';
+	localStorage.setItem(WATCHED_SORT_KEY, watchedSort);
+	updateSortToggleLabel();
+	if (sidebarElement?.classList.contains('open')) renderWatchedMovies();
 }
 
 /**
@@ -743,33 +819,20 @@ function setup() {
 
 		sidebarCloseElement?.addEventListener('click', () => toggleSidebar(false));
 
-		settingsToggleElement?.addEventListener('click', (event) => {
-			event.stopPropagation();
-			const isOpen = !settingsPanelElement?.classList.contains('open');
-			settingsPanelElement?.classList.toggle('open', isOpen);
+		sortToggleElement?.addEventListener('click', toggleWatchedSort);
+		updateSortToggleLabel();
+
+		themeToggleElement?.addEventListener('click', () => {
+			const willOpen = !themeSidebarElement?.classList.contains('open');
+			toggleThemeSidebar(willOpen);
 		});
 
-		settingsCloseElement?.addEventListener('click', () => {
-			settingsPanelElement?.classList.remove('open');
-		});
-
-		settingsPanelElement?.querySelectorAll('.theme-option').forEach((option) => {
-			option.addEventListener('click', () => {
-				applyTheme(option.dataset.theme);
-				settingsPanelElement?.classList.remove('open');
-			});
-		});
-
-		document.addEventListener('click', (event) => {
-			if (settingsPanelElement && !settingsPanelElement.contains(event.target) && event.target !== settingsToggleElement) {
-				settingsPanelElement.classList.remove('open');
-			}
-		});
+		themeCloseElement?.addEventListener('click', () => toggleThemeSidebar(false));
 
 		document.addEventListener('keydown', (event) => {
 			if (event.key === 'Escape') {
 				toggleSidebar(false);
-				settingsPanelElement?.classList.remove('open');
+				toggleThemeSidebar(false);
 			}
 		});
 
