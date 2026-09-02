@@ -69,7 +69,6 @@ const initializationTimeoutTimer = setTimeout(() => {
  */
 async function init(data, scriptVersion) {
 	try {
-		clearTimeout(initializationTimeoutTimer);
 		containerElement.querySelectorAll('.message').forEach((element) => element.remove());
 
 		currentMovie = null;
@@ -888,6 +887,7 @@ function setup() {
 	} catch (error) {
 		logger.error('Setup error', error);
 	}
+	clearTimeout(initializationTimeoutTimer);
 }
 
 document.addEventListener('DOMContentLoaded', setup);

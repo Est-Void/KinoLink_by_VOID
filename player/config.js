@@ -1,5 +1,5 @@
 // Latest required script version
-const REQUIRED_VERSION = '0.4.1';
+const REQUIRED_VERSION = '0.4.6';
 
 // Kinobox-compatible player APIs queried directly by the player page.
 // `fbphdplay.top` is the same API that FlicksBar uses (CORS `*`, reachable

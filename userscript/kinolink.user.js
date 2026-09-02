@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         KinoLink by VOID
 // @namespace    kinolink
-// @version      0.4.5
+// @version      0.4.7
 // @description  light player for kinopoisk
 // @author       V01D4GE
 // @match        *://www.kinopoisk.ru/*
@@ -24,7 +24,7 @@
 	let observer = null;
 
 	// Print once so it's easy to verify in the console which version is running
-	console.info('[KinoLink Script] KinoLink by VOID v0.4.4 started');
+	console.info('[KinoLink Script] KinoLink by VOID v0.4.6 started');
 
 	/**
 	 * Ensure our "Смотреть" button is attached to the left of "Буду смотреть".
@@ -70,64 +70,32 @@
 	 */
 	function createWatchButton() {
 		const wrapper = document.createElement('div');
-		wrapper.className = 'kinolink-watch-wrapper';
+		wrapper.className = 'styles_button__bW_ew';
+		wrapper.style.marginRight = '8px';
 
 		const button = document.createElement('button');
 		button.id = 'kinolink-watch-button';
 		button.type = 'button';
+		button.className = 'style_button__Awsrq style_buttonSize52__MBeHC style_buttonPrimary__Qn_9l style_buttonDark__pBW5l style_withIconLeft__USlpL';
+		button.setAttribute('aria-pressed', 'false');
 		button.title = 'Смотреть';
 		button.addEventListener('click', openPlayer);
 
+		button.style.setProperty('background', 'linear-gradient(45deg, #2b0a45 0%, #000000 100%)', 'important');
+		button.style.setProperty('background-color', 'transparent', 'important');
+
 		const icon = document.createElement('span');
-		icon.className = 'kinolink-watch-icon';
-		icon.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M6 3.375 21 12 6 20.625V3.375Z" fill="currentColor"/></svg>';
+		icon.className = 'style_iconLeft__9qY8j';
+		icon.style.display = 'flex';
+		icon.style.alignItems = 'center';
+		icon.style.justifyContent = 'center';
+		icon.innerHTML = '<svg width="24" height="24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M6 3.375 21 12 6 20.625V3.375Z" fill="#ffffff"/></svg>';
 
 		button.appendChild(icon);
 		button.appendChild(document.createTextNode('Смотреть'));
 
 		wrapper.appendChild(button);
 		return wrapper;
-	}
-
-	/**
-	 * Inject the button styles as a scoped <style> block. Targets only our id,
-	 * so the native Kinopoisk styles stay untouched.
-	 */
-	function injectStyles() {
-		const style = document.createElement('style');
-		style.textContent = `
-			#kinolink-watch-button {
-				display: inline-flex;
-				align-items: center;
-				gap: 0.5rem;
-				height: 40px;
-				padding: 0 1.125rem;
-				border: 1px solid rgba(224, 122, 0, 0.55);
-				border-radius: 12px;
-				background: rgba(15, 15, 15, 0.55);
-				color: #ffffff;
-				font: 500 0.95rem/1 var(--font-sans, sans-serif);
-				cursor: pointer;
-				transition: background-color 0.15s ease, border-color 0.15s ease;
-			}
-			#kinolink-watch-button:hover {
-				background: rgba(224, 122, 0, 0.28);
-				border-color: #e07a00;
-			}
-			#kinolink-watch-button:focus-visible {
-				outline: 2px solid rgba(224, 122, 0, 0.6);
-				outline-offset: 2px;
-			}
-			#kinolink-watch-button .kinolink-watch-icon {
-				display: inline-flex;
-				align-items: center;
-				justify-content: center;
-			}
-			.kinolink-watch-wrapper {
-				margin-right: 8px;
-			}
-		`;
-		document.head.appendChild(style);
 	}
 
 	/**
@@ -248,7 +216,6 @@ function openPlayer() {
 	 * Initialize the script
 	 */
 	function init() {
-		injectStyles();
 		ensureWatchButton();
 
 		observer = new MutationObserver(() => {
