@@ -105,12 +105,16 @@ def _is_alive(pid):
 
 def _lan_ipv4():
     try:
-        out = subprocess.check_output(['hostname', '-I'], text=True, timeout=3).split()
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        try:
+            sock.connect(('8.8.8.8', 80))
+            ip = sock.getsockname()[0]
+        finally:
+            sock.close()
+        if ip and not ip.startswith('127.'):
+            return ip
     except Exception:
-        return None
-    for part in out:
-        if ':' not in part and not part.startswith('127.'):
-            return part
+        pass
     return None
 
 
