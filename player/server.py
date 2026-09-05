@@ -425,6 +425,9 @@ def main(argv=None):
 
     if bind_host in ('0.0.0.0', '::'):
         print(f'KinoLink server on http://{bind_host}:{port} (локально: http://127.0.0.1:{port})', flush=True)
+        lan_ip = _lan_ipv4()
+        if lan_ip:
+            print(f'Локальная сеть: http://{lan_ip}:{port}  (mDNS: http://kinolink.local:{port})', flush=True)
         print('Внимание: сервер доступен из локальной сети.', flush=True)
     else:
         print(f'KinoLink server on http://{bind_host}:{port}', flush=True)

@@ -1272,6 +1272,13 @@ function setup() {
 
 			if (parsed && typeof parsed === 'object' && typeof parsed.title === 'string') {
 				logger.info('Movie data from URL:', parsed);
+				if (parsed.kinopoisk) {
+					const cleanUrl = location.pathname + '?movie=' + encodeURIComponent(parsed.kinopoisk);
+					try {
+						history.replaceState(null, '', cleanUrl);
+					} catch (error) {
+					}
+				}
 				init(parsed);
 				return;
 			}

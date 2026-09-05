@@ -7,6 +7,8 @@
 // @match        *://www.kinopoisk.ru/*
 // @match        *://hd.kinopoisk.ru/*
 // @icon         none
+// @updateURL    https://raw.githubusercontent.com/Est-Void/KinoLink_by_VOID/main/userscript/kinolink.user.js
+// @downloadURL  https://raw.githubusercontent.com/Est-Void/KinoLink_by_VOID/main/userscript/kinolink.user.js
 // @grant        none
 // ==/UserScript==
 
@@ -20,6 +22,7 @@
 	const SERVER_DISCOVER_KEY = 'kinolink-server-url';
 	const SERVER_DISCOVER_RANGE = { start: 8080, end: 8129 };
 	const SERVER_MDNS_HOST = 'kinolink.local'; // локальный адрес сервера в сети (mDNS)
+	const SCRIPT_VERSION = '0.7.2';
 
 	const logger = {
 		info: (...args) => console.info('[KinoLink Script]', ...args),
@@ -73,7 +76,78 @@
 		const mdns = await scanHost(SERVER_MDNS_HOST);
 		if (mdns) return mdns;
 
+		showServerSettings();
 		return PLAYER_URL;
+	}
+
+	function showServerSettings() {
+		if (settingsShown) return;
+		settingsShown = true;
+
+		const overlay = document.createElement('div');
+		overlay.style.cssText =
+			'position:fixed;z-index:2147483647;right:16px;bottom:16px;width:320px;background:#18181b;color:#fff;border:1px solid #3f3f46;border-radius:12px;padding:16px;font:14px/1.4 system-ui,sans-serif;box-shadow:0 8px 30px rgba(0,0,0,.5)';
+
+		const title = document.createElement('div');
+		title.textContent = 'KinoLink: сервер не найден';
+		title.style.cssText = 'font-weight:700;margin-bottom:8px';
+		overlay.appendChild(title);
+
+		const hint = document.createElement('div');
+		hint.textContent =
+			'Введите адрес сервера (он показан в консоли компьютера при запуске сервера), например http://192.168.0.28:8080/. Кнопка «Смотреть» заработает после сохранения.';
+		hint.style.cssText = 'font-size:12px;color:#a1a1aa;margin-bottom:8px';
+		overlay.appendChild(hint);
+
+		const input = document.createElement('input');
+		input.type = 'text';
+		input.placeholder = 'http://192.168.0.28:8080/';
+		input.style.cssText =
+			'width:100%;box-sizing:border-box;padding:8px;border-radius:8px;border:1px solid #3f3f46;background:#27272a;color:#fff;font:inherit;margin-bottom:8px';
+		overlay.appendChild(input);
+
+		const status = document.createElement('div');
+		status.style.cssText = 'font-size:12px;color:#a1a1aa;margin-bottom:8px';
+		overlay.appendChild(status);
+
+		const save = document.createElement('button');
+		save.type = 'button';
+		save.textContent = 'Сохранить';
+		save.style.cssText =
+			'padding:8px 14px;border:0;border-radius:8px;background:linear-gradient(45deg,#2b0a45,#000);color:#fff;cursor:pointer;font-weight:600;margin-right:8px';
+		overlay.appendChild(save);
+
+		const close = document.createElement('button');
+		close.type = 'button';
+		close.textContent = 'Закрыть';
+		close.style.cssText =
+			'padding:8px 14px;border:1px solid #3f3f46;border-radius:8px;background:transparent;color:#a1a1aa;cursor:pointer';
+		overlay.appendChild(close);
+
+		save.addEventListener('click', async () => {
+			const raw = (input.value || '').trim();
+			if (!/^https?:\/\/.+/i.test(raw)) {
+				status.textContent = 'Некорректный адрес';
+				return;
+			}
+			const value = raw.replace(/\/+$/, '') + '/';
+			status.textContent = 'Проверяю…';
+			const ok = await probeServer(value);
+			if (!ok) {
+				status.textContent = 'Сервер не отвечает по этому адресу';
+				return;
+			}
+			try {
+				localStorage.setItem(SERVER_DISCOVER_KEY, value);
+			} catch (error) {
+			}
+			playerUrlPromise = null;
+			status.textContent = 'Сохранено. Нажмите «Смотреть» ещё раз.';
+			logger.info('Server URL saved:', value);
+		});
+
+		close.addEventListener('click', () => overlay.remove());
+		document.documentElement.appendChild(overlay);
 	}
 
 	function resolvePlayerUrl() {
@@ -84,8 +158,9 @@
 	}
 
 	let observer = null;
+	let settingsShown = false;
 
-	console.info('[KinoLink Script] KinoLink by VOID v0.7.0 started');
+	console.info(`[KinoLink Script] KinoLink by VOID v${SCRIPT_VERSION} started`);
 
 	function ensureWatchButton() {
 		const watchLaterWrapper = findWatchLaterWrapper();
@@ -311,8 +386,8 @@
 		logger.info('Opening player for movie', data);
 		const base = await resolvePlayerUrl();
 		logger.info('Player server:', base);
-		const cached = await cacheDetails(data);
-		const query = data.kinopoisk && cached
+		await cacheDetails(data);
+		const query = data.kinopoisk
 			? `?movie=${data.kinopoisk}`
 			: `?movie=${encodeURIComponent(JSON.stringify(data))}`;
 		window.open(`${base}${query}`, '_blank');
