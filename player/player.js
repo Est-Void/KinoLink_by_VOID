@@ -914,6 +914,8 @@ function renderWatchedMovies() {
 
 async function fetchMovieDetails(movie) {
 	const base = {
+		kinopoisk: movie.kinopoisk ?? '',
+		type: movie.type ?? '',
 		title: movie.title ?? '',
 		cover: movie.cover ?? '',
 		genre: movie.genre ?? '',
@@ -948,6 +950,8 @@ async function fetchMovieDetails(movie) {
 			const c = await res.json().catch(() => null);
 			if (!c || typeof c !== 'object') return null;
 			return {
+				kinopoisk: base.kinopoisk || c.kinopoisk || '',
+				type: base.type || c.type || '',
 				title: fill(base.title, c.title),
 				cover: fill(base.cover, c.cover),
 				genre: fill(base.genre, c.genre),
@@ -968,6 +972,22 @@ async function fetchMovieDetails(movie) {
 	};
 
 	return (await fromCache()) || base;
+}
+
+async function initFromKpId(kpId) {
+	try {
+		const movie = await fetchMovieDetails({ kinopoisk: kpId });
+		if (!movie.title) {
+			clearInitializationTimeout();
+			showPlayerText('Не удалось получить данные о фильме. Откройте его страницу на Кинопоиске и нажмите «Смотреть».');
+			return;
+		}
+		await init(movie);
+	} catch (error) {
+		clearInitializationTimeout();
+		logger.error('Failed to load movie by id', error);
+		showPlayerText('Не удалось загрузить фильм. Попробуйте ещё раз.');
+	}
 }
 
 async function showMovieModal(movie) {
@@ -1226,6 +1246,12 @@ function setup() {
 			if (parsed && typeof parsed === 'object' && typeof parsed.title === 'string') {
 				logger.info('Movie data from URL:', parsed);
 				init(parsed);
+				return;
+			}
+
+			if (/^\d+$/.test(movieParam)) {
+				logger.info('Movie id from URL:', movieParam);
+				initFromKpId(movieParam);
 				return;
 			}
 

@@ -1,15 +1,28 @@
 #!/usr/bin/env python3
+import argparse
 import json
 import os
+import signal
+import socket
+import sys
+import threading
 import urllib.parse
 import urllib.request
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 
 KINOBOX_REMOTE = 'https://api.kinobox.tv/api/players'
-PORT = 8080
+DEFAULT_PORT = 8080
+MAX_AUTO_PORT = 8129
+PROBE_TIMEOUT = 0.4
 BROWSER_UA = 'Mozilla/5.0 (X11; Linux x86_64; rv:154.0) Gecko/20100101 Firefox/154.0'
+PROBE_UA = 'kinolink-probe/1.0'
 
-KP_CACHE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.kp-info-cache.json')
+APP_NAME = 'kinolink'
+APP_VERSION = '0.7.0'
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+KP_CACHE_FILE = os.path.join(BASE_DIR, '.kp-info-cache.json')
+SERVER_INFO_FILE = os.path.join(BASE_DIR, '.kinolink-server.json')
 MAX_CACHE_SIZE = 1024 * 1024
 
 
@@ -30,6 +43,131 @@ def _save_kp_cache(data):
         pass
 
 
+def _probe_port(port, host='127.0.0.1', timeout=PROBE_TIMEOUT):
+    def _fetch(path):
+        request = urllib.request.Request(
+            f'http://{host}:{port}{path}',
+            headers={'User-Agent': PROBE_UA, 'Accept': '*/*'},
+        )
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            return response.read()
+
+    try:
+        data = json.loads(_fetch('/api/status').decode('utf-8'))
+        if isinstance(data, dict) and data.get('app') == APP_NAME:
+            return data
+    except Exception:
+        pass
+
+    try:
+        body = _fetch('/')
+    except Exception:
+        return None
+    if isinstance(body, bytes) and b'KinoLink' in body:
+        return {'app': APP_NAME, 'detected': 'root'}
+    return None
+
+
+def _read_server_info():
+    try:
+        with open(SERVER_INFO_FILE, 'r', encoding='utf-8') as fh:
+            data = json.load(fh)
+            if isinstance(data, dict) and isinstance(data.get('pid'), int):
+                return data
+    except Exception:
+        pass
+    return None
+
+
+def _write_server_info(info):
+    try:
+        with open(SERVER_INFO_FILE, 'w', encoding='utf-8') as fh:
+            json.dump(info, fh, ensure_ascii=False)
+    except Exception:
+        pass
+
+
+def _remove_server_info():
+    try:
+        os.remove(SERVER_INFO_FILE)
+    except OSError:
+        pass
+
+
+def _is_alive(pid):
+    try:
+        os.kill(pid, 0)
+        return True
+    except OSError:
+        return False
+
+
+class AlreadyRunning(Exception):
+    def __init__(self, port, info=None):
+        self.port = int(port)
+        self.info = info or {}
+        self.pid = self.info.get('pid')
+
+    def __str__(self):
+        host = '127.0.0.1' if self.info.get('detected') == 'root' else (self.info.get('host') or '127.0.0.1')
+        suffix = f' (pid {self.pid})' if self.pid else ''
+        return f'http://{host}:{self.port}{suffix}'
+
+
+def find_running_instance():
+    info = _read_server_info()
+    if info and _is_alive(info.get('pid')) and _probe_port(int(info.get('port')), info.get('host') or '127.0.0.1'):
+        return AlreadyRunning(int(info.get('port')), info)
+
+    found = []
+    lock = threading.Lock()
+    workers = []
+
+    def check(port):
+        data = _probe_port(port)
+        if data:
+            with lock:
+                found.append((int(port), data))
+
+    for port in range(DEFAULT_PORT, MAX_AUTO_PORT + 1):
+        worker = threading.Thread(target=check, args=(port,), daemon=True)
+        worker.start()
+        workers.append(worker)
+
+    for worker in workers:
+        worker.join()
+
+    if not found:
+        return None
+    found.sort(key=lambda item: item[0])
+    port, data = found[0]
+    return AlreadyRunning(port, data)
+
+
+def _create_server(host, port):
+    family = socket.AF_INET6 if ':' in host else socket.AF_INET
+    server_cls = type('KinoLinkServer', (ThreadingHTTPServer,), {'address_family': family})
+    return server_cls((host, port), Handler)
+
+
+def bind_server(host, forced_port):
+    if forced_port:
+        try:
+            return _create_server(host, forced_port)
+        except OSError:
+            if _probe_port(forced_port):
+                raise AlreadyRunning(forced_port)
+            raise RuntimeError(f'Порт {forced_port} занят другим приложением')
+
+    for port in range(DEFAULT_PORT, MAX_AUTO_PORT + 1):
+        try:
+            return _create_server(host, port)
+        except OSError:
+            if _probe_port(port):
+                raise AlreadyRunning(port)
+    raise RuntimeError(f'Не удалось найти свободный порт в диапазоне {DEFAULT_PORT}–{MAX_AUTO_PORT}')
+
+
 class Handler(SimpleHTTPRequestHandler):
     def send_response(self, code, message=None):
         super().send_response(code, message)
@@ -47,6 +185,9 @@ class Handler(SimpleHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self):
+        if self.path.startswith('/api/status'):
+            self._api_status()
+            return
         if self.path.startswith('/api/kinobox'):
             self._kinobox_proxy()
             return
@@ -57,6 +198,23 @@ class Handler(SimpleHTTPRequestHandler):
             self._cover_proxy()
             return
         super().do_GET()
+
+    def _api_status(self):
+        host, port = self.server.server_address[:2]
+        body = json.dumps({
+            'app': APP_NAME,
+            'version': APP_VERSION,
+            'status': 'ok',
+            'pid': os.getpid(),
+            'host': host,
+            'port': port,
+        }, ensure_ascii=False).encode('utf-8')
+        self.send_response(200)
+        self._cors_headers()
+        self.send_header('Content-Type', 'application/json; charset=utf-8')
+        self.send_header('Content-Length', str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
 
     def do_POST(self):
         if self.path.startswith('/api/kp-info'):
@@ -179,8 +337,68 @@ class Handler(SimpleHTTPRequestHandler):
             self.wfile.write(body)
 
 
+def main(argv=None):
+    parser = argparse.ArgumentParser(
+        description='KinoLink by VOID — локальный сервер плеера.',
+        epilog=f'Если порт {DEFAULT_PORT} занят, автоматически выбирается следующий свободный порт (до {MAX_AUTO_PORT}).',
+    )
+    parser.add_argument('--port', type=int, metavar='PORT', default=None,
+                        help='использовать конкретный порт вместо автоматического выбора')
+    parser.add_argument('--host', metavar='HOST', default=None,
+                        help='адрес интерфейса для прослушивания (по умолчанию 127.0.0.1)')
+    parser.add_argument('--global', dest='global_bind', action='store_true',
+                        help='слушать на всех интерфейсах (0.0.0.0)')
+    args = parser.parse_args(argv)
+
+    if args.port is not None and not 0 < args.port < 65536:
+        parser.error('port должен быть в диапазоне 1–65535')
+
+    host = '0.0.0.0' if args.global_bind else (args.host or '127.0.0.1')
+
+    try:
+        running = find_running_instance()
+        if running:
+            raise running
+        server = bind_server(host, args.port)
+    except AlreadyRunning as exc:
+        print(f'KinoLink: процесс уже запущен на {exc}. Используйте этот адрес.', file=sys.stderr)
+        return 1
+    except RuntimeError as exc:
+        print(f'KinoLink: {exc}', file=sys.stderr)
+        return 1
+
+    bind_host, port = server.server_address[:2]
+
+    os.chdir(BASE_DIR)
+    _write_server_info({
+        'app': APP_NAME,
+        'version': APP_VERSION,
+        'pid': os.getpid(),
+        'host': bind_host,
+        'port': port,
+    })
+
+    def _on_signal(signum, frame):
+        raise KeyboardInterrupt
+
+    signal.signal(signal.SIGINT, _on_signal)
+    signal.signal(signal.SIGTERM, _on_signal)
+
+    if bind_host in ('0.0.0.0', '::'):
+        print(f'KinoLink server on http://{bind_host}:{port} (локально: http://127.0.0.1:{port})', flush=True)
+        print('Внимание: сервер доступен из локальной сети.', flush=True)
+    else:
+        print(f'KinoLink server on http://{bind_host}:{port}', flush=True)
+
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        server.server_close()
+        _remove_server_info()
+    return 0
+
+
 if __name__ == '__main__':
-    os.chdir(os.path.dirname(os.path.abspath(__file__)))
-    server = ThreadingHTTPServer(('127.0.0.1', PORT), Handler)
-    print(f'KinoLink server on http://127.0.0.1:{PORT}')
-    server.serve_forever()
+    sys.exit(main())

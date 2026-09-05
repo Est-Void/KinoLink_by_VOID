@@ -5,3 +5,4 @@ qwen.md
 __pycache__/
 *.pyc
 player/.kp-info-cache.json
+player/.kinolink-server.json

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         KinoLink by VOID
 // @namespace    kinolink
-// @version      0.6.0
+// @version      0.7.0
 // @description  light player for kinopoisk
 // @author       V01D4GE
 // @match        *://www.kinopoisk.ru/*
@@ -13,7 +13,12 @@
 (function () {
 	'use strict';
 
-	const PLAYER_URL = 'http://localhost:8080/';
+	const PLAYER_URL = 'http://127.0.0.1:8080/';
+	// Автоопределение адреса сервера: если сервер поднялся не на 8080,
+	// клиент сам найдёт его перебором портов через /api/status.
+	const CUSTOM_SERVER_URL = ''; // явный адрес сервера, например 'http://192.168.1.5:8080/'
+	const SERVER_DISCOVER_KEY = 'kinolink-server-url';
+	const SERVER_DISCOVER_RANGE = { start: 8080, end: 8129 };
 
 	const logger = {
 		info: (...args) => console.info('[KinoLink Script]', ...args),
@@ -21,9 +26,55 @@
 		error: (...args) => console.error('[KinoLink Script]', ...args),
 	};
 
+	let playerUrlPromise = null;
+
+	async function probeServer(base) {
+		try {
+			const controller = new AbortController();
+			const timer = setTimeout(() => controller.abort(), 400);
+			const response = await fetch(`${base}api/status`, { signal: controller.signal });
+			clearTimeout(timer);
+			if (!response.ok) return false;
+			const data = await response.json();
+			return Boolean(data && data.app === 'kinolink');
+		} catch (error) {
+			return false;
+		}
+	}
+
+	async function discoverPlayerUrl() {
+		if (CUSTOM_SERVER_URL) return CUSTOM_SERVER_URL;
+
+		let cached = null;
+		try {
+			cached = localStorage.getItem(SERVER_DISCOVER_KEY);
+		} catch (error) {
+		}
+		if (cached && (await probeServer(cached))) return cached;
+
+		for (let port = SERVER_DISCOVER_RANGE.start; port <= SERVER_DISCOVER_RANGE.end; port++) {
+			const candidate = `http://127.0.0.1:${port}/`;
+			if (await probeServer(candidate)) {
+				try {
+					localStorage.setItem(SERVER_DISCOVER_KEY, candidate);
+				} catch (error) {
+				}
+				return candidate;
+			}
+		}
+		return PLAYER_URL;
+	}
+
+	function resolvePlayerUrl() {
+		if (!playerUrlPromise) {
+			playerUrlPromise = discoverPlayerUrl().then((url) => url);
+		}
+		return playerUrlPromise;
+	}
+
 	let observer = null;
 
-	console.info('[KinoLink Script] KinoLink by VOID v0.6.0 started');
+	console.info('[KinoLink Script] KinoLink by VOID v0.7.0 started');
 
 	function ensureWatchButton() {
 		const watchLaterWrapper = findWatchLaterWrapper();
@@ -242,21 +293,28 @@
 		};
 	}
 
-	function openPlayer() {
+	async function openPlayer() {
 		const data = extractMovieData();
 		if (!data) return logger.error('Failed to extract movie data');
 
 		logger.info('Opening player for movie', data);
-		cacheDetails(data);
-		window.open(`${PLAYER_URL}?movie=${encodeURIComponent(JSON.stringify(data))}`, '_blank');
+		const base = await resolvePlayerUrl();
+		logger.info('Player server:', base);
+		await cacheDetails(data);
+		const query = data.kinopoisk
+			? `?movie=${data.kinopoisk}`
+			: `?movie=${encodeURIComponent(JSON.stringify(data))}`;
+		window.open(`${base}${query}`, '_blank');
 	}
 
-	function cacheDetails(data) {
+	async function cacheDetails(data) {
 		if (!data?.kinopoisk) return;
 		if (typeof fetch !== 'function') return;
 		try {
+			const base = await resolvePlayerUrl();
 			const payload = {
 				title: data.title || '',
+				type: data.type || '',
 				cover: data.cover || '',
 				genre: data.genre || '',
 				year: data.year || '',
@@ -270,7 +328,7 @@
 				actors: data.actors || '',
 				altTitle: data.altTitle || '',
 			};
-			fetch(`${PLAYER_URL}api/kp-info?id=${encodeURIComponent(data.kinopoisk)}`, {
+			await fetch(`${base}api/kp-info?id=${encodeURIComponent(data.kinopoisk)}`, {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify(payload),

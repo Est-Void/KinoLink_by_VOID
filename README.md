@@ -30,7 +30,7 @@ cd KinoLink_by_VOID
    - установите скрипт по [этой ссылке](https://github.com/Est-Void/KinoLink_by_VOID/raw/main/userscript/kinolink.user.js) _(или скачайте `userscript/kinolink.user.js` из репозитория вручную)_
    - на страницах Кинопоиска появится кнопка «Смотреть»
 
-3. Запустите локальный сервер (из любой папки — он сам найдёт файлы плеера):
+3. Запустите локальный сервер:
 
 ```bash
 python3 player/server.py
