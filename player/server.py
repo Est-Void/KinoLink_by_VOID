@@ -103,24 +103,35 @@ def _is_alive(pid):
         return False
 
 
-def _announce_mdns(port):
+def _lan_ipv4():
     try:
-        utils = subprocess.check_output(['sh', '-c', 'command -v avahi-publish-service || true'], text=True).strip()
-        if not utils:
-            return None
-        host = subprocess.Popen(
-            ['avahi-publish-host', 'kinolink'],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
-        service = subprocess.Popen(
-            ['avahi-publish-service', 'kinolink', '_http._tcp', str(port)],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
-        return [host, service]
+        out = subprocess.check_output(['hostname', '-I'], text=True, timeout=3).split()
     except Exception:
         return None
+    for part in out:
+        if ':' not in part and not part.startswith('127.'):
+            return part
+    return None
+
+
+def _announce_mdns(port):
+    procs = []
+    try:
+        host_addr = _lan_ipv4()
+        if host_addr:
+            procs.append(subprocess.Popen(
+                ['/usr/bin/avahi-publish-address', '-R', 'kinolink.local', host_addr],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            ))
+        procs.append(subprocess.Popen(
+            ['/usr/bin/avahi-publish-service', 'kinolink', '_http._tcp', str(port)],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        ))
+    except Exception:
+        pass
+    return procs or None
 
 
 class AlreadyRunning(Exception):
