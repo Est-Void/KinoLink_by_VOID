@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         KinoLink by VOID
 // @namespace    kinolink
-// @version      0.7.2
+// @version      0.7.3
 // @description  light player for kinopoisk
 // @author       V01D4GE
 // @match        *://www.kinopoisk.ru/*
@@ -22,7 +22,7 @@
 	const SERVER_DISCOVER_KEY = 'kinolink-server-url';
 	const SERVER_DISCOVER_RANGE = { start: 8080, end: 8129 };
 	const SERVER_MDNS_HOST = 'kinolink.local'; // локальный адрес сервера в сети (mDNS)
-	const SCRIPT_VERSION = '0.7.2';
+	const SCRIPT_VERSION = '0.7.3';
 
 	const logger = {
 		info: (...args) => console.info('[KinoLink Script]', ...args),
@@ -77,7 +77,7 @@
 		if (mdns) return mdns;
 
 		showServerSettings();
-		return PLAYER_URL;
+		return null;
 	}
 
 	function showServerSettings() {
@@ -385,6 +385,11 @@
 
 		logger.info('Opening player for movie', data);
 		const base = await resolvePlayerUrl();
+		if (!base) {
+			logger.error('KinoLink: сервер не найден, показываю настройки сервера');
+			showServerSettings();
+			return;
+		}
 		logger.info('Player server:', base);
 		await cacheDetails(data);
 		const query = data.kinopoisk
@@ -398,6 +403,7 @@
 		if (typeof fetch !== 'function') return false;
 		try {
 			const base = await resolvePlayerUrl();
+			if (!base) return false;
 			const payload = {
 				title: data.title || '',
 				type: data.type || '',
@@ -432,7 +438,39 @@
 		}
 	}
 
+	function showToast(message) {
+		let toast = document.getElementById('kinolink-toast');
+		if (!toast) {
+			toast = document.createElement('div');
+			toast.id = 'kinolink-toast';
+			toast.style.cssText =
+				'position:fixed;z-index:2147483647;left:50%;bottom:20px;transform:translateX(-50%);max-width:90vw;background:#18181b;color:#fff;border:1px solid #3f3f46;border-radius:10px;padding:10px 14px;font:13px/1.4 system-ui,sans-serif;box-shadow:0 8px 30px rgba(0,0,0,.5)';
+			document.documentElement.appendChild(toast);
+		}
+		toast.textContent = message;
+		clearTimeout(toast._timer);
+		toast._timer = setTimeout(() => toast.remove(), 5000);
+	}
+
+	function applyPairParam() {
+		const pairParam = new URLSearchParams(location.search).get('kinolink-pair');
+		if (!pairParam) return;
+		try {
+			localStorage.setItem(SERVER_DISCOVER_KEY, pairParam);
+			playerUrlPromise = null;
+			logger.info('KinoLink: сервер сохранён из пары:', pairParam);
+			showToast(`KinoLink: сервер сохранён (${pairParam})`);
+			const params = new URLSearchParams(location.search);
+			params.delete('kinolink-pair');
+			const qs = params.toString();
+			history.replaceState(null, '', location.pathname + (qs ? `?${qs}` : '') + location.hash);
+		} catch (error) {
+			logger.error('Failed to apply pair param', error);
+		}
+	}
+
 	function init() {
+		applyPairParam();
 		ensureWatchButton();
 
 		const data = extractMovieData();

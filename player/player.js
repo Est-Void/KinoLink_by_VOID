@@ -1184,6 +1184,60 @@ function closeMovieModal() {
 	document.querySelectorAll('.movie-modal-overlay').forEach((el) => el.remove());
 }
 
+function showPhoneModal() {
+	closeMovieModal();
+
+	const pairUrl = `${location.origin}/pair`;
+
+	const overlay = document.createElement('div');
+	overlay.className = 'movie-modal-overlay';
+	overlay.addEventListener('click', (event) => {
+		if (event.target === overlay) closeMovieModal();
+	});
+
+	const modal = document.createElement('div');
+	modal.className = 'movie-modal';
+	modal.setAttribute('role', 'dialog');
+	modal.setAttribute('aria-modal', 'true');
+	modal.setAttribute('aria-label', 'Настройка на смартфоне');
+
+	const close = document.createElement('button');
+	close.type = 'button';
+	close.className = 'modal-close';
+	close.setAttribute('aria-label', 'Закрыть');
+	close.innerHTML = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
+	close.addEventListener('click', closeMovieModal);
+	modal.appendChild(close);
+
+	const title = document.createElement('h2');
+	title.textContent = 'Настройка на смартфоне';
+	title.style.cssText = 'margin:0 0 10px;font-size:18px';
+	modal.appendChild(title);
+
+	const text = document.createElement('p');
+	text.textContent = 'Отсканируйте QR-код на телефоне или откройте ссылку: страница автоматически настроит адрес сервера для KinoLink на этом устройстве.';
+	text.style.cssText = 'margin:0 0 12px;font-size:13px;color:#a1a1aa;line-height:1.5';
+	modal.appendChild(text);
+
+	const link = document.createElement('a');
+	link.href = pairUrl;
+	link.textContent = pairUrl;
+	link.style.cssText = 'display:block;font-size:13px;color:#7dd3fc;word-break:break-all;margin-bottom:12px';
+	modal.appendChild(link);
+
+	const qr = document.createElement('img');
+	qr.alt = 'QR-код настройки';
+	qr.width = 240;
+	qr.height = 240;
+	qr.src = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(pairUrl)}`;
+	qr.style.cssText = 'display:block;margin:0 auto;border-radius:10px';
+	qr.addEventListener('error', () => qr.remove());
+	modal.appendChild(qr);
+
+	overlay.appendChild(modal);
+	document.body.appendChild(overlay);
+}
+
 function loadWatchedMovie(movie) {
 	toggleSidebar(false);
 
@@ -1246,6 +1300,9 @@ function setup() {
 		});
 
 		themeCloseElement?.addEventListener('click', () => toggleThemeSidebar(false));
+
+		const phoneToggleElement = document.getElementById('phone-toggle');
+		phoneToggleElement?.addEventListener('click', showPhoneModal);
 
 		document.addEventListener('keydown', (event) => {
 			if (event.key === 'Escape') {

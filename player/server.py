@@ -231,10 +231,43 @@ class Handler(SimpleHTTPRequestHandler):
         if self.path.startswith('/api/kp-info'):
             self._kp_info_get()
             return
+        if self.path.startswith('/pair'):
+            self._pair_page()
+            return
         if self.path.startswith('/cover'):
             self._cover_proxy()
             return
         super().do_GET()
+
+    def _pair_page(self):
+        base_url = f'http://{self.headers.get("Host", "127.0.0.1:8080")}/'
+        kp_url = 'https://www.kinopoisk.ru/?kinolink-pair=' + urllib.parse.quote(base_url, safe='')
+        body = f'''<!DOCTYPE html>
+<html lang="ru"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>KinoLink — настройка</title>
+<style>
+body{{margin:0;font-family:system-ui,sans-serif;background:#0b0b0f;color:#fff;display:flex;align-items:center;justify-content:center;min-height:100vh}}
+.card{{max-width:380px;width:100%;margin:24px;padding:24px;background:#18181b;border:1px solid #3f3f46;border-radius:14px;text-align:center}}
+h1{{font-size:18px;margin:0 0 12px}}
+p{{font-size:13px;color:#a1a1aa;line-height:1.5;margin:0 0 16px}}
+code{{display:block;font-size:13px;color:#7dd3fc;word-break:break-all;margin-bottom:16px}}
+a.btn{{display:block;padding:12px;border-radius:10px;text-decoration:none;color:#fff;font-weight:600;background:linear-gradient(45deg,#2b0a45,#000)}}
+.small{{font-size:12px;color:#52525b;margin-top:12px}}
+</style></head><body><div class="card">
+<h1>KinoLink</h1>
+<p>Сейчас браузер настроит адрес сервера на этой странице Кинопоиска. Если переход не произошёл — нажмите кнопку.</p>
+<code>{base_url}</code>
+<a class="btn" href="{kp_url}">Настроить на этом устройстве</a>
+<div class="small">Откроется Кинопоиск — ничего вводить не нужно</div>
+</div>
+<script>setTimeout(function(){{location.href={json.dumps(kp_url)};}},600);</script>
+</body></html>'''.encode('utf-8')
+        self.send_response(200)
+        self.send_header('Content-Type', 'text/html; charset=utf-8')
+        self.send_header('Content-Length', str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
 
     def _api_status(self):
         host, port = self.server.server_address[:2]
