@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         KinoLink by VOID
 // @namespace    kinolink
-// @version      0.7.0
+// @version      0.7.1
 // @description  light player for kinopoisk
 // @author       V01D4GE
 // @match        *://www.kinopoisk.ru/*
@@ -300,16 +300,16 @@
 		logger.info('Opening player for movie', data);
 		const base = await resolvePlayerUrl();
 		logger.info('Player server:', base);
-		await cacheDetails(data);
-		const query = data.kinopoisk
+		const cached = await cacheDetails(data);
+		const query = data.kinopoisk && cached
 			? `?movie=${data.kinopoisk}`
 			: `?movie=${encodeURIComponent(JSON.stringify(data))}`;
 		window.open(`${base}${query}`, '_blank');
 	}
 
 	async function cacheDetails(data) {
-		if (!data?.kinopoisk) return;
-		if (typeof fetch !== 'function') return;
+		if (!data?.kinopoisk) return false;
+		if (typeof fetch !== 'function') return false;
 		try {
 			const base = await resolvePlayerUrl();
 			const payload = {
@@ -328,12 +328,14 @@
 				actors: data.actors || '',
 				altTitle: data.altTitle || '',
 			};
-			await fetch(`${base}api/kp-info?id=${encodeURIComponent(data.kinopoisk)}`, {
+			const response = await fetch(`${base}api/kp-info?id=${encodeURIComponent(data.kinopoisk)}`, {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify(payload),
-			}).catch(() => {});
+			}).catch(() => null);
+			return Boolean(response && response.ok);
 		} catch (error) {
+			return false;
 		}
 	}
 

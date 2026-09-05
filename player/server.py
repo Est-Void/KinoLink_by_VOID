@@ -18,7 +18,7 @@ BROWSER_UA = 'Mozilla/5.0 (X11; Linux x86_64; rv:154.0) Gecko/20100101 Firefox/1
 PROBE_UA = 'kinolink-probe/1.0'
 
 APP_NAME = 'kinolink'
-APP_VERSION = '0.7.0'
+APP_VERSION = '0.7.1'
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 KP_CACHE_FILE = os.path.join(BASE_DIR, '.kp-info-cache.json')
@@ -178,6 +178,7 @@ class Handler(SimpleHTTPRequestHandler):
         self.send_header('Access-Control-Allow-Origin', '*')
         self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
         self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+        self.send_header('Access-Control-Allow-Private-Network', 'true')
 
     def do_OPTIONS(self):
         self.send_response(204)
