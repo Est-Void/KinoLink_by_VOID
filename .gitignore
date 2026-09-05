@@ -2,3 +2,6 @@
 expl/
 .opencode/
 qwen.md
+__pycache__/
+*.pyc
+player/.kp-info-cache.json

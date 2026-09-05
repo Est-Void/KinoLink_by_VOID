@@ -6,13 +6,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>KinoLink by VOID</title>
     <link rel="icon" href="assets/play.png">
-    <link rel="stylesheet" href="style.css?v=0.4.6">
+    <link rel="stylesheet" href="style.css?v=0.6.1">
 </head>
 
 <body>
     <div id="container">
 
-        <!-- Player header -->
         <header id="header">
             <button id="watched-toggle" type="button" aria-expanded="false" aria-label="Просмотренные фильмы" title="Просмотренные">
                 <svg viewBox="0 0 24 24" width="20" height="20" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -30,7 +29,6 @@
             <div id="title">...</div>
         </header>
 
-        <!-- Watched sidebar (slides from the left) -->
         <div id="sidebar" aria-label="Просмотренные фильмы">
             <div class="sidebar-head">
                 <div class="sidebar-head-start">
@@ -46,7 +44,6 @@
             <div id="watched-list"></div>
         </div>
 
-        <!-- Theme sidebar (same layout as the watched one) -->
         <div id="theme-sidebar" aria-label="Темы">
             <div class="sidebar-head">
                 <div class="sidebar-head-start">
@@ -61,28 +58,37 @@
             <div id="theme-list"></div>
         </div>
 
-        <!-- Playback area -->
         <div id="content">
             <div class="loader"></div>
         </div>
 
-        <!-- Player sources (sliding accent indicator) -->
+        <div id="episode-bar" hidden>
+            <div class="episode-group">
+                <button id="season-prev" type="button" aria-label="Предыдущий сезон">−</button>
+                <span id="season-label">Сезон 1</span>
+                <button id="season-next" type="button" aria-label="Следующий сезон">+</button>
+            </div>
+            <div class="episode-group">
+                <button id="episode-prev" type="button" aria-label="Предыдущая серия">−</button>
+                <span id="episode-label">Серия 1</span>
+                <button id="episode-next" type="button" aria-label="Следующая серия">+</button>
+            </div>
+            <button id="episode-next-btn" type="button">Следующая серия →</button>
+        </div>
+
         <div id="sources" role="tablist" aria-label="Источники воспроизведения"></div>
     </div>
 
-    <!-- Background -->
     <div id="background"></div>
 
-    <!-- Footer (bottom-center, semi-transparent) -->
     <div id="footer">
         <div class="caption">приятного просмотра</div>
         <a class="made-by" href="https://github.com/Est-Void" target="_blank" rel="noopener noreferrer" title="GitHub — est-Void">Made by VOID</a>
     </div>
 
-    <!-- Player code -->
-    <script src="config.js?v=0.4.6"></script>
-    <script src="utils.js?v=0.4.6"></script>
-    <script src="player.js?v=0.4.6"></script>
+    <script src="config.js?v=0.6.1"></script>
+    <script src="utils.js?v=0.6.1"></script>
+    <script src="player.js?v=0.6.1"></script>
 </body>
 
 </html>

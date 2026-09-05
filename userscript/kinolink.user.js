@@ -1,14 +1,14 @@
 // ==UserScript==
 // @name         KinoLink by VOID
 // @namespace    kinolink
-// @version      0.4.7
+// @version      0.6.0
 // @description  light player for kinopoisk
 // @author       V01D4GE
 // @match        *://www.kinopoisk.ru/*
+// @match        *://hd.kinopoisk.ru/*
 // @icon         none
 // @grant        none
 // ==/UserScript==
-
 
 (function () {
 	'use strict';
@@ -23,14 +23,8 @@
 
 	let observer = null;
 
-	// Print once so it's easy to verify in the console which version is running
-	console.info('[KinoLink Script] KinoLink by VOID v0.4.6 started');
+	console.info('[KinoLink Script] KinoLink by VOID v0.6.0 started');
 
-	/**
-	 * Ensure our "Смотреть" button is attached to the left of "Буду смотреть".
-	 * Runs on every DOM mutation. Re-adds the button if it has been removed
-	 * by Kinopoisk re-rendering.
-	 */
 	function ensureWatchButton() {
 		const watchLaterWrapper = findWatchLaterWrapper();
 		if (document.getElementById('kinolink-watch-button')) return;
@@ -41,10 +35,6 @@
 		logger.info('Watch button attached');
 	}
 
-	/**
-	 * Find the outer wrapper of the "Буду смотреть" button.
-	 * @returns {HTMLElement | null}
-	 */
 	function findWatchLaterWrapper() {
 		const button = Array.from(document.querySelectorAll('button')).find(
 			(el) => el.getAttribute('title') === 'Буду смотреть' && el.textContent.includes('Буду смотреть')
@@ -63,11 +53,6 @@
 		return anchor ? anchor.parentElement : null;
 	}
 
-	/**
-	 * Create the "Смотреть" button. Styling lives in injected CSS targeting
-	 * our own id (no inline !important overrides fighting Kinopoisk).
-	 * @returns {HTMLDivElement}
-	 */
 	function createWatchButton() {
 		const wrapper = document.createElement('div');
 		wrapper.className = 'styles_button__bW_ew';
@@ -98,11 +83,65 @@
 		return wrapper;
 	}
 
-	/**
-	 * Extract movie data from the page: kinopoisk id, type, title, cover,
-	 * genre and year (from og tags + embedded JSON-LD).
-	 * @returns {{ kinopoisk: string, type: 'movie' | 'series', title: string, cover: string, genre: string, year: string } | null}
-	 */
+	function scrapePageDetails() {
+		const text = (node) => (node ? String(node.textContent || '').replace(/\s+/g, ' ').trim() : '');
+
+		const fact = (name) => {
+			const el = document.querySelector(`div[data-test-id="${name}"]`);
+			if (!el) return '';
+			const children = el.children;
+			return text(children[children.length - 1]);
+		};
+
+		const ratingNode = document.querySelector(
+			'.film-rating-value, [data-test-id="rating-value"], [data-test-id="rating"], .styles_ratingValue__qHpfi',
+		);
+		const ratingMatch = text(ratingNode).match(/^([\d.,]+)/);
+		const rating = ratingMatch ? ratingMatch[1].replace(',', '.') : '';
+
+		const age = fact('ageLimit') || fact('age') || '';
+		const ageMatch = String(age).match(/(\d{1,2})\+/);
+		const ageRating = ageMatch ? ageMatch[1] : '';
+
+		const countries = fact('countries');
+		const duration = fact('duration');
+		const slogan = fact('tagline');
+
+		const persons = (role) => {
+			const el = document.querySelector(`[data-test-id="${role}"]`);
+			const names = el ? Array.from(el.querySelectorAll('a')).map((a) => text(a)).filter(Boolean) : [];
+			return names.join(', ');
+		};
+		const directors = persons('director') || fact('directors');
+		const actors = persons('actors') || fact('actors') || fact('actor');
+
+		const altTitle = text(
+			document.querySelector('span.styles_originalTitle__nZWQK, span.styles_originalTitle__wJYdQ, [data-test-id="original-title"]'),
+		);
+
+		const descriptionNode = document.querySelector(
+			'.styles_paragraph__V0fA2, [data-test-id="description"], .styles_paragraph__bpa54, p[itemprop="description"]',
+		);
+		let description = text(descriptionNode);
+		if (!description) {
+			const metaDesc = document.querySelector('meta[property="og:description"]')?.content?.trim();
+			const metaClr = document.querySelector('meta[name="description"]')?.content?.trim();
+			description = metaDesc || metaClr || '';
+		}
+
+		return {
+			rating,
+			description,
+			slogan,
+			ageRating,
+			countries,
+			duration,
+			directors,
+			actors,
+			altTitle,
+		};
+	}
+
 	function extractMovieData() {
 		const path = location.pathname;
 		const match = path.match(/^\/(film|series)\/(\d+)(\/|$)/);
@@ -115,7 +154,14 @@
 		if (title.startsWith('Кинопоиск.')) return null;
 		title = title.replace('— смотреть онлайн в хорошем качестве — Кинопоиск', '').trim();
 
-const pageCover = (() => {
+		let altFromTitle = '';
+		const parenMatch = title.match(/\s*\(([^()]*\d{4}[^()]*)\)\s*$/);
+		if (parenMatch && title.includes(',') && /\)\s*$/.test(title)) {
+			altFromTitle = parenMatch[1];
+			title = title.replace(/\s*\(([^()]*\d{4}[^()]*)\)\s*$/, '').trim();
+		}
+
+		const pageCover = (() => {
 			const read = (selector, attribute) => document.querySelector(selector)?.getAttribute?.(attribute)?.trim?.();
 			const readContent = (selector) => document.querySelector(selector)?.content?.trim?.();
 
@@ -140,9 +186,6 @@ const pageCover = (() => {
 			return '';
 		};
 
-		// Parse embedded JSON-LD. Kinopoisk embeds several scripts (breadcrumbs,
-		// the site, the film); scan all of them and take poster/genre/year from
-		// the film entity.
 		let genre = '';
 		let year = '';
 		let jsonPoster = '';
@@ -165,12 +208,9 @@ const pageCover = (() => {
 				const data = JSON.parse(script.textContent);
 				parseNode(data);
 			} catch (error) {
-				// Skip malformed JSON-LD blocks
 			}
 		}
 
-		// Ultimate fallback: grab the first Kinopoisk poster URL referenced in
-		// the page markup (og/JSON-LD are not always present).
 		const posterFromHtml = () => {
 			if (typeof document.documentElement?.innerHTML !== 'string') return '';
 			const urls =
@@ -188,22 +228,56 @@ const pageCover = (() => {
 
 		const poster = jsonPoster || pageCover || posterFromHtml();
 
-		return { kinopoisk: match[2], type, title, cover: poster, genre, year };
+		const details = scrapePageDetails();
+
+		return {
+			kinopoisk: match[2],
+			type,
+			title,
+			cover: poster,
+			genre,
+			year,
+			...details,
+			altTitle: altFromTitle || details.altTitle,
+		};
 	}
 
-/**
- * Open the player with the extracted data. The player itself queries the
- * Kinobox-compatible sources (see KINOBOX_API_ENDPOINTS) — CORS `*` — so
- * nothing here needs to be fetched ahead of time and the button opens
- * instantly.
- */
-function openPlayer() {
-	const data = extractMovieData();
-	if (!data) return logger.error('Failed to extract movie data');
+	function openPlayer() {
+		const data = extractMovieData();
+		if (!data) return logger.error('Failed to extract movie data');
 
-	logger.info('Opening player for movie', data);
-	window.open(`${PLAYER_URL}?movie=${encodeURIComponent(JSON.stringify(data))}`, '_blank');
-}
+		logger.info('Opening player for movie', data);
+		cacheDetails(data);
+		window.open(`${PLAYER_URL}?movie=${encodeURIComponent(JSON.stringify(data))}`, '_blank');
+	}
+
+	function cacheDetails(data) {
+		if (!data?.kinopoisk) return;
+		if (typeof fetch !== 'function') return;
+		try {
+			const payload = {
+				title: data.title || '',
+				cover: data.cover || '',
+				genre: data.genre || '',
+				year: data.year || '',
+				rating: data.rating || '',
+				description: data.description || '',
+				slogan: data.slogan || '',
+				ageRating: data.ageRating || '',
+				countries: data.countries || '',
+				duration: data.duration || '',
+				directors: data.directors || '',
+				actors: data.actors || '',
+				altTitle: data.altTitle || '',
+			};
+			fetch(`${PLAYER_URL}api/kp-info?id=${encodeURIComponent(data.kinopoisk)}`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify(payload),
+			}).catch(() => {});
+		} catch (error) {
+		}
+	}
 
 	function cleanup() {
 		if (observer) {
@@ -212,11 +286,11 @@ function openPlayer() {
 		}
 	}
 
-	/**
-	 * Initialize the script
-	 */
 	function init() {
 		ensureWatchButton();
+
+		const data = extractMovieData();
+		if (data) cacheDetails(data);
 
 		observer = new MutationObserver(() => {
 			requestAnimationFrame(ensureWatchButton);

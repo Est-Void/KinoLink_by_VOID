@@ -1,6 +1,3 @@
-/// <reference path="./config.js" />
-/// <reference path="./utils.js" />
-
 const containerElement = document.getElementById('container');
 const contentElement = document.getElementById('content');
 const headerElement = document.getElementById('header');
@@ -16,23 +13,34 @@ const themeToggleElement = document.getElementById('theme-toggle');
 const themeSidebarElement = document.getElementById('theme-sidebar');
 const themeCloseElement = document.querySelector('#theme-sidebar .sidebar-close');
 const themeListElement = document.getElementById('theme-list');
+const episodeBarElement = document.getElementById('episode-bar');
+const seasonLabelElement = document.getElementById('season-label');
+const episodeLabelElement = document.getElementById('episode-label');
+const seasonPrevElement = document.getElementById('season-prev');
+const seasonNextElement = document.getElementById('season-next');
+const episodePrevElement = document.getElementById('episode-prev');
+const episodeNextElement = document.getElementById('episode-next');
+const episodeNextBtnElement = document.getElementById('episode-next-btn');
 
 let currentMovieKey = getSearchParam('movie') ?? '';
-let currentTitle = '';
 let currentResizeHandler = null;
 let currentMovie = null;
 let currentSources = [];
 let currentEpisode = null;
+let currentSource = null;
 
+const EPISODE_KEY = 'kinolink-episodes';
 const WATCHED_KEY = 'kinolink-watched-movies';
 const WATCHED_SORT_KEY = 'kinolink-watched-sort';
 const THEME_KEY = 'kinolink-theme';
 
 const THEMES = {
-	violet: { label: 'Виолетовая', description: 'тёмная с фиолетовым акцентом' },
-	graphite: { label: 'Тёмно-серая', description: 'спокойная стальная гамма' },
-	oled: { label: 'OLED', description: 'чистый чёрный, без фонов' },
-	estvoid: { label: 'est-Void', description: 'инженерный минимализм' },
+	violet: { label: 'Виолетовая' },
+	graphite: { label: 'Тёмно-серая' },
+	oled: { label: 'OLED' },
+	estvoid: { label: 'est-Void' },
+	cosmic: { label: 'Космос' },
+	dynamic: { label: 'Динамический' },
 };
 
 const THEME_CLASS = {
@@ -40,33 +48,26 @@ const THEME_CLASS = {
 	graphite: 'theme-graphite',
 	oled: 'theme-oled',
 	estvoid: 'theme-estvoid',
+	cosmic: 'theme-cosmic',
+	dynamic: 'theme-dynamic',
 };
 
 const LEGACY_THEME = { black: 'violet', purple: 'violet' };
 
+const MORPH_FADE = 450;
+
 let currentTheme = normalizeTheme(localStorage.getItem(THEME_KEY) || 'violet');
 let watchedSort = localStorage.getItem(WATCHED_SORT_KEY) === 'desc' ? 'desc' : 'asc';
-
-/**
- * @typedef {object} MovieData
- * @property {string} [kinopoisk]
- * @property {string} [imdb]
- * @property {string} [tmdb]
- * @property {'movie' | 'series'} [type]
- * @property {object[]} [sources] Pre-fetched sources in the form { type, iframeUrl }
- * @property {string} title
- */
 
 const initializationTimeoutTimer = setTimeout(() => {
 	logger.error('Initialization timeout');
 	showMessage('Плеер не инициализировался. Обновите страницу и проверьте, что установлена актуальная версия скрипта.', 'error');
-}, 5000);
+}, 15000);
 
-/**
- * Initialize player
- * @param {object} data The movie data
- * @param {string} [scriptVersion] The version of the script
- */
+function clearInitializationTimeout() {
+	clearTimeout(initializationTimeoutTimer);
+}
+
 async function init(data, scriptVersion) {
 	try {
 		containerElement.querySelectorAll('.message').forEach((element) => element.remove());
@@ -74,12 +75,18 @@ async function init(data, scriptVersion) {
 		currentMovie = null;
 		currentSources = [];
 		currentEpisode = null;
+		currentSource = null;
 
 		const movieData = parseMovieData(data);
 
 		logger.info('Initialization started', movieData);
 
 		currentMovie = movieData;
+		if (movieData?.type === 'series') {
+			currentEpisode = loadEpisode(movieData);
+			currentMovie = { ...movieData, episode: currentEpisode };
+		}
+		renderEpisodeBar();
 
 		const key = cacheMovieData(movieData);
 		currentMovieKey = key;
@@ -94,15 +101,18 @@ async function init(data, scriptVersion) {
 			sources = await fetchSources(movieData);
 		} catch (error) {
 			if (error?.message === 'NOT_FOUND') {
+				clearInitializationTimeout();
 				showPlayerText('Не удалось определить IMDb id для этого фильма');
 				return;
 			}
 			logger.error('Error fetching data from server', error);
+			clearInitializationTimeout();
 			showMessage('Источники временно недоступны. Попробуйте обновить страницу или открыть фильм позже.', 'error');
 			return;
 		}
 
 		if (sources.length === 0) {
+			clearInitializationTimeout();
 			showPlayerText('Источник не найден. Проверьте, что фильм доступен на Кинопоиске.');
 			return;
 		}
@@ -115,31 +125,23 @@ async function init(data, scriptVersion) {
 		}
 
 		backgroundElement.classList.add('visible');
+		clearInitializationTimeout();
+
+		if (currentTheme === 'dynamic') {
+			applyDynamicBackdrop(movieData.cover);
+		}
 	} catch (error) {
+		clearInitializationTimeout();
 		logger.error('Error during initialization', error);
 		showMessage('Произошла ошибка во время запуска плеера.', 'error');
 	}
 }
 
-/**
- * Build the embed URL for a provider entry.
- * @param {object} provider
- * @param {MovieData} movieData Data with { imdb, type, episode? }
- * @returns {string}
- */
 function buildSourceUrl(provider, movieData) {
 	if (typeof provider.build === 'function') return provider.build(movieData);
 	return provider.template.replace('{imdb}', movieData.imdb);
 }
 
-/**
- * Fetch player sources for the movie.
- * Tries the Kinobox-compatible APIs (see KINOBOX_API_ENDPOINTS) first;
- * falls back to resolving the IMDb id (cached value, Wikidata or TMDB) and
- * building embed URLs from the providers configured in config.js.
- * @param {MovieData} movieData
- * @returns {Promise<object[]>} Sources in the form { type, iframeUrl }
- */
 async function fetchSources(movieData) {
 	const provided = Array.isArray(movieData?.sources)
 		? movieData.sources.filter((source) => source?.iframeUrl && source?.type)
@@ -156,26 +158,17 @@ async function fetchSources(movieData) {
 	if (sources.length === 0) {
 		const imdb = await resolveImdbId(movieData);
 		if (!imdb) return [];
-		if (movieData.type === 'series' && !currentEpisode) {
-			currentEpisode = { season: 1, number: 1 };
-		}
 		currentMovie = { ...movieData, imdb, episode: currentEpisode };
 		sources = PROVIDERS.map((provider) => ({
 			type: provider.type,
 			iframeUrl: buildSourceUrl(provider, currentMovie),
+			provider,
 		}));
 	}
 
 	return sources;
 }
 
-/**
- * Fetch players from the Kinobox-compatible APIs, trying each configured
- * endpoint in order until one returns players (same request kinobox.js
- * makes: GET /api/players?kinopoisk=...).
- * @param {MovieData} movieData
- * @returns {Promise<object[]>}
- */
 async function fetchKinoboxSources(movieData) {
 	if (!movieData?.kinopoisk) return [];
 
@@ -201,7 +194,6 @@ async function fetchKinoboxSources(movieData) {
 				.filter((player) => player?.iframeUrl && player?.type)
 				.map((player) => ({ type: player.type, iframeUrl: player.iframeUrl }));
 
-			// Kinobox finishes with the "turbo" player; keep that order
 			const turboIndex = players.findIndex((player) => player.type.toLowerCase() === 'turbo');
 			if (turboIndex !== -1) players.push(players.splice(turboIndex, 1)[0]);
 
@@ -216,11 +208,6 @@ async function fetchKinoboxSources(movieData) {
 
 const IMDB_CACHE_KEY = 'kinolink-imdb-cache';
 
-/**
- * Get a cached IMDb id for the movie.
- * @param {MovieData} movieData
- * @returns {string}
- */
 function getCachedImdb(movieData) {
 	try {
 		const raw = localStorage.getItem(IMDB_CACHE_KEY);
@@ -232,11 +219,6 @@ function getCachedImdb(movieData) {
 	}
 }
 
-/**
- * Store the resolved IMDb id in the cache.
- * @param {MovieData} movieData
- * @param {string} imdb
- */
 function setCachedImdb(movieData, imdb) {
 	if (!imdb || !movieData?.kinopoisk) return;
 	try {
@@ -249,25 +231,12 @@ function setCachedImdb(movieData, imdb) {
 	}
 }
 
-/**
- * Fetch JSON with error handling.
- * @param {string | URL} url
- * @param {string} [accept]
- * @returns {Promise<any>}
- */
 async function fetchJson(url, accept = 'application/json') {
 	const response = await fetch(url, { headers: { Accept: accept } });
 	if (!response.ok) throw new Error(`Request failed with status ${response.status}`);
 	return response.json();
 }
 
-/**
- * Resolve the IMDb id for the movie: from the given data, the local cache,
- * then through the configured resolvers (TMDB when a key is present,
- * Wikidata otherwise — no key required).
- * @param {MovieData} movieData
- * @returns {Promise<string>}
- */
 async function resolveImdbId(movieData) {
 	if (movieData?.imdb) return movieData.imdb;
 
@@ -299,11 +268,6 @@ async function resolveImdbId(movieData) {
 	throw new Error('NOT_FOUND');
 }
 
-/**
- * Resolve the IMDb id via TMDB (search by title + year or external_ids).
- * @param {MovieData} movieData
- * @returns {Promise<string>}
- */
 async function resolveImdbFromTmdb(movieData) {
 	const isSeries = movieData?.type === 'series';
 	const collection = isSeries ? 'tv' : 'movie';
@@ -343,12 +307,6 @@ async function resolveImdbFromTmdb(movieData) {
 	return external?.imdb_id || '';
 }
 
-/**
- * Resolve the IMDb id via the public no-key Wikidata SPARQL endpoint.
- * Matches the Kinopoisk film id (P2603) against the IMDb id (P345).
- * @param {MovieData} movieData
- * @returns {Promise<string>}
- */
 async function resolveImdbFromWikidata(movieData) {
 	if (!movieData?.kinopoisk) return '';
 
@@ -364,11 +322,6 @@ async function resolveImdbFromWikidata(movieData) {
 	return binding?.imdb?.value || '';
 }
 
-/**
- * Update list of available sources. Renders a segmented control with a
- * floating accent indicator that "crawls" to the selected player.
- * @param {object[]} sourcesData
- */
 function setSources(sourcesData) {
 	sourcesElement.innerHTML = '';
 	sourcesElement.setAttribute('role', 'tablist');
@@ -424,16 +377,23 @@ function setSources(sourcesData) {
 	window.addEventListener('resize', updateSourceIndicator);
 }
 
-/**
- * Select source to display in the player
- * @param {object} sourceData
- */
 function selectSource(sourceData) {
+	currentSource = sourceData;
+
+	let url = sourceData?.iframeUrl ?? '';
+	if (currentMovie?.type === 'series' && currentEpisode) {
+		if (sourceData?.provider) {
+			url = buildSourceUrl(sourceData.provider, { ...currentMovie, episode: currentEpisode });
+		} else {
+			url = applyEpisodeToUrl(url);
+		}
+	}
+
 	const frame = document.createElement('div');
 	frame.className = 'frame';
 
 	const iframe = document.createElement('iframe');
-	iframe.src = sourceData?.iframeUrl;
+	iframe.src = url;
 	iframe.allowFullscreen = true;
 
 	frame.appendChild(iframe);
@@ -443,16 +403,74 @@ function selectSource(sourceData) {
 	fitPlayerFrame();
 }
 
-/**
- * Size the player frame to the largest 16:9 size that fits the viewport
- * below the header and the sources bar, so the video leaves no empty space
- * around it (the container card wraps tightly around the player).
- */
+function applyEpisodeToUrl(url) {
+	try {
+		const parsed = new URL(url, location.href);
+		parsed.searchParams.set('season', String(currentEpisode.season));
+		parsed.searchParams.set('episode', String(currentEpisode.number));
+		return parsed.toString();
+	} catch {
+		return url;
+	}
+}
+
+function episodeStorageKey(movie) {
+	return movie?.kinopoisk ? `kp:${movie.kinopoisk}` : `t:${movie?.title ?? ''}`;
+}
+
+function loadEpisode(movie) {
+	try {
+		const raw = localStorage.getItem(EPISODE_KEY);
+		const map = raw ? JSON.parse(raw) : {};
+		const saved = map[episodeStorageKey(movie)];
+		if (saved && Number.isInteger(saved.season) && Number.isInteger(saved.number)) {
+			return { season: Math.max(1, saved.season), number: Math.max(1, saved.number) };
+		}
+	} catch (error) {
+		logger.warn('Failed to read episode memory', error);
+	}
+	return { season: 1, number: 1 };
+}
+
+function saveEpisode() {
+	if (!currentMovie || !currentEpisode) return;
+	try {
+		const raw = localStorage.getItem(EPISODE_KEY);
+		const map = raw ? JSON.parse(raw) : {};
+		map[episodeStorageKey(currentMovie)] = currentEpisode;
+		localStorage.setItem(EPISODE_KEY, JSON.stringify(map));
+	} catch (error) {
+		logger.warn('Failed to save episode memory', error);
+	}
+}
+
+function setEpisode(season, number) {
+	if (currentMovie?.type !== 'series') return;
+	currentEpisode = {
+		season: Math.max(1, Math.trunc(season) || 1),
+		number: Math.max(1, Math.trunc(number) || 1),
+	};
+	currentMovie = { ...currentMovie, episode: currentEpisode };
+	saveEpisode();
+	renderEpisodeBar();
+	if (currentSource) selectSource(currentSource);
+}
+
+function renderEpisodeBar() {
+	if (!episodeBarElement) return;
+	const isSeries = currentMovie?.type === 'series';
+	episodeBarElement.hidden = !isSeries;
+	if (!isSeries || !currentEpisode) return;
+	if (seasonLabelElement) seasonLabelElement.textContent = `Сезон ${currentEpisode.season}`;
+	if (episodeLabelElement) episodeLabelElement.textContent = `Серия ${currentEpisode.number}`;
+}
+
 function fitPlayerFrame() {
 	const frame = contentElement.querySelector('.frame');
 	if (!frame) return;
 
-	const chrome = (headerElement?.offsetHeight ?? 64) + (sourcesElement?.offsetHeight ?? 56) + 24;
+	const episodeBar = (!episodeBarElement?.hidden && episodeBarElement?.offsetHeight) || 0;
+	const chrome = (headerElement?.offsetHeight ?? 64) + (sourcesElement?.offsetHeight ?? 56) + episodeBar + 24;
 	const availableHeight = Math.max(window.innerHeight - chrome - 12, 120);
 
 	let width = contentElement.clientWidth || window.innerWidth;
@@ -462,7 +480,6 @@ function fitPlayerFrame() {
 }
 
 function setTitle(title) {
-	currentTitle = title;
 	document.title = `${title} | KinoLink`;
 	if (titleElement) {
 		titleElement.textContent = title ?? '';
@@ -489,6 +506,135 @@ function applyTheme(theme) {
 	document.body.classList.add(THEME_CLASS[currentTheme]);
 	localStorage.setItem(THEME_KEY, currentTheme);
 	updateThemeOptionStates();
+	if (currentTheme === 'dynamic') {
+		applyDynamicBackdrop(currentMovie?.cover);
+	} else {
+		clearDynamicBackdrop();
+	}
+}
+
+let currentDynamicCover = '';
+let dynamicMorphTimer = null;
+
+function clearDynamicBackdrop() {
+	const root = document.documentElement.style;
+	root.removeProperty('--dynamic-cover');
+	root.removeProperty('--dynamic-accent');
+	root.removeProperty('--dynamic-glow');
+	root.removeProperty('--dynamic-subtle');
+	root.removeProperty('--dynamic-mid');
+	currentDynamicCover = '';
+	if (dynamicMorphTimer) {
+		clearTimeout(dynamicMorphTimer);
+		dynamicMorphTimer = null;
+	}
+	backgroundElement.classList.remove('morphing');
+}
+
+async function applyDynamicBackdrop(rawCover) {
+	const resolved = resolveCoverUrl(rawCover || '');
+	if (!resolved) {
+		clearDynamicBackdrop();
+		backgroundElement.classList.remove('visible');
+		return;
+	}
+
+	if (resolved !== currentDynamicCover) {
+		const changing = resolved !== '' && currentDynamicCover !== '';
+		currentDynamicCover = resolved;
+		if (changing) {
+
+			backgroundElement.classList.add('morphing');
+			if (dynamicMorphTimer) clearTimeout(dynamicMorphTimer);
+			dynamicMorphTimer = setTimeout(() => {
+				document.documentElement.style.setProperty('--dynamic-cover', `url("${resolved}")`);
+				dynamicMorphTimer = setTimeout(() => backgroundElement.classList.remove('morphing'), MORPH_FADE);
+			}, MORPH_FADE);
+		} else {
+			document.documentElement.style.setProperty('--dynamic-cover', `url("${resolved}")`);
+		}
+	}
+
+	backgroundElement.classList.add('visible');
+
+	try {
+		const accent = await extractAccentFromImage(resolved);
+		if (accent) {
+			const rgb = hexToRgb(accent.rgb);
+			document.documentElement.style.setProperty('--dynamic-accent', accent.rgb);
+			if (rgb) {
+				document.documentElement.style.setProperty('--dynamic-glow', `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.3)`);
+				document.documentElement.style.setProperty('--dynamic-subtle', `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.12)`);
+				document.documentElement.style.setProperty('--dynamic-mid', `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.2)`);
+			}
+		}
+	} catch (error) {
+		logger.warn('Could not extract accent color', error);
+	}
+}
+
+function hexToRgb(hex) {
+	const match = hex.replace('#', '');
+	if (match.length !== 6) return null;
+	return {
+		r: parseInt(match.slice(0, 2), 16),
+		g: parseInt(match.slice(2, 4), 16),
+		b: parseInt(match.slice(4, 6), 16),
+	};
+}
+
+function rgbToHex(r, g, b) {
+	const clamp = (v) => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0');
+	return `#${clamp(r)}${clamp(g)}${clamp(b)}`;
+}
+
+function extractAccentFromImage(url) {
+	return new Promise((resolve, reject) => {
+		const img = new Image();
+		img.crossOrigin = 'anonymous';
+		img.onload = () => {
+			try {
+				const size = 64;
+				const canvas = document.createElement('canvas');
+				canvas.width = size;
+				canvas.height = size;
+				const ctx = canvas.getContext('2d', { willReadFrequently: true });
+				ctx.drawImage(img, 0, 0, size, size);
+
+				const data = ctx.getImageData(0, 0, size, size).data;
+				const bucketSize = 24;
+				const buckets = new Map();
+				let maxCount = 0;
+				let best = null;
+
+				for (let i = 0; i < data.length; i += 4) {
+					const r = data[i];
+					const g = data[i + 1];
+					const b = data[i + 2];
+					const a = data[i + 3];
+					if (a < 125) continue;
+
+					const max = Math.max(r, g, b);
+					const min = Math.min(r, g, b);
+					if (max < 30 || min > 220) continue;
+
+					const key = `${Math.floor(r / bucketSize)},${Math.floor(g / bucketSize)},${Math.floor(b / bucketSize)}`;
+					const count = (buckets.get(key) || 0) + 1;
+					buckets.set(key, count);
+					if (count > maxCount) {
+						maxCount = count;
+						best = { r, g, b };
+					}
+				}
+
+				resolve(best ? { rgb: rgbToHex(best.r, best.g, best.b) } : null);
+			} catch (error) {
+				reject(error);
+			}
+		};
+		img.onerror = () => resolve(null);
+		img.src = url;
+	});
 }
 
 function renderThemeOptions() {
@@ -505,11 +651,7 @@ function renderThemeOptions() {
 		name.className = 'theme-name';
 		name.textContent = meta.label;
 
-		const desc = document.createElement('span');
-		desc.className = 'theme-desc';
-		desc.textContent = meta.description;
-
-		option.append(name, desc);
+		option.appendChild(name);
 		option.addEventListener('click', () => applyTheme(id));
 		themeListElement.appendChild(option);
 	});
@@ -536,18 +678,16 @@ function cacheMovieData(movieData) {
 	return key;
 }
 
-/**
- * Validate and clean the movie data
- * @param {string | object} data
- * @returns {MovieData}
- * @throws Will throw an error if the data is invalid
- */
 function parseMovieData(data) {
 	if (typeof data !== 'object' || data === null) {
 		throw new Error(`Invalid movie data type: "${typeof data}"`);
 	}
 
-	const allowedKeys = ['imdb', 'tmdb', 'kinopoisk', 'title', 'cover', 'genre', 'year', 'type', 'sources'];
+	const allowedKeys = [
+		'imdb', 'tmdb', 'kinopoisk', 'title', 'cover', 'genre', 'year', 'type', 'sources',
+		'rating', 'description', 'slogan', 'ageRating', 'countries', 'duration',
+		'directors', 'actors', 'altTitle',
+	];
 	Object.keys(data).forEach((key) => {
 		if (!allowedKeys.includes(key)) delete data[key];
 	});
@@ -555,12 +695,6 @@ function parseMovieData(data) {
 	return data;
 }
 
-/**
- * Show a dismissible notification inside the player.
- * @param {string} text The notification text
- * @param {'error' | undefined} [type] Message style
- * @returns {HTMLElement} The message element
- */
 function showMessage(text, type) {
 	const message = document.createElement('div');
 	message.className = type === 'error' ? 'message error' : 'message';
@@ -581,10 +715,6 @@ function showMessage(text, type) {
 	return message;
 }
 
-/**
- * Show plain text inside the player frame.
- * @param {string} messageText The message to display
- */
 function showPlayerText(messageText) {
 	const playerTextElement = document.createElement('span');
 	playerTextElement.textContent = messageText;
@@ -594,16 +724,18 @@ function showPlayerText(messageText) {
 	contentElement.appendChild(playerTextElement);
 }
 
-/**
- * Persist a movie in the watched list (stored separately from the source cache).
- * @param {MovieData} movieData
- */
+function sameMovie(a, b) {
+	if (!a || !b) return false;
+	if (a.kinopoisk && b.kinopoisk) return a.kinopoisk === b.kinopoisk;
+	return a.title === b.title;
+}
+
 function saveWatchedMovie(movieData) {
 	if (!movieData?.title) return;
 
 	let watched = getWatchedMovies();
-	const existing = watched.find((item) => item.title === movieData.title);
-	watched = watched.filter((item) => item.title !== movieData.title);
+	const existing = watched.find((item) => sameMovie(item, movieData));
+	watched = watched.filter((item) => !sameMovie(item, movieData));
 	watched.unshift({
 		kinopoisk: movieData.kinopoisk ?? '',
 		type: movieData.type ?? 'movie',
@@ -611,6 +743,15 @@ function saveWatchedMovie(movieData) {
 		cover: movieData.cover || existing?.cover || '',
 		genre: movieData.genre || existing?.genre || '',
 		year: movieData.year || existing?.year || '',
+		rating: movieData.rating || existing?.rating || '',
+		description: movieData.description || existing?.description || '',
+		slogan: movieData.slogan || existing?.slogan || '',
+		ageRating: movieData.ageRating || existing?.ageRating || '',
+		countries: movieData.countries || existing?.countries || '',
+		duration: movieData.duration || existing?.duration || '',
+		directors: movieData.directors || existing?.directors || '',
+		actors: movieData.actors || existing?.actors || '',
+		altTitle: movieData.altTitle || existing?.altTitle || '',
 		timestamp: Date.now(),
 	});
 
@@ -621,10 +762,6 @@ function saveWatchedMovie(movieData) {
 	}
 }
 
-/**
- * Get the stored watched movies list.
- * @returns {{ kinopoisk: string, type: string, title: string, cover: string, genre: string, year: string, timestamp: number }[]}
- */
 function getWatchedMovies() {
 	try {
 		const raw = localStorage.getItem(WATCHED_KEY);
@@ -638,11 +775,6 @@ function getWatchedMovies() {
 	}
 }
 
-/**
- * Route remote cover images through the local server (same-origin with the
- * player page) so strict browser privacy settings cannot block the CDN.
- * @param {string} rawUrl
- */
 function resolveCoverUrl(rawUrl) {
 	if (!rawUrl) return '';
 	try {
@@ -656,16 +788,12 @@ function resolveCoverUrl(rawUrl) {
 	return rawUrl;
 }
 
-/**
- * Backfill covers for watched entries that were saved without one — the most
- * reliable instant source is the currently loaded movie's fresh data.
- */
 function syncCurrentCover() {
 	if (!currentMovie?.cover || !currentMovie?.title) return;
 
 	let changed = false;
 	const movies = getWatchedMovies().map((movie) => {
-		if (!movie.cover && movie.title === currentMovie.title) {
+		if (!movie.cover && sameMovie(movie, currentMovie)) {
 			changed = true;
 			return { ...movie, cover: currentMovie.cover };
 		}
@@ -681,9 +809,17 @@ function syncCurrentCover() {
 	}
 }
 
-/**
- * Render the watched movies sidebar.
- */
+function deleteWatchedMovie(movie) {
+	if (!movie) return;
+	try {
+		const movies = getWatchedMovies().filter((item) => !sameMovie(item, movie));
+		localStorage.setItem(WATCHED_KEY, JSON.stringify(movies));
+	} catch (error) {
+		logger.warn('Failed to delete watched movie', error);
+	}
+	renderWatchedMovies();
+}
+
 function renderWatchedMovies() {
 	if (!watchedListElement) return;
 
@@ -708,12 +844,17 @@ function renderWatchedMovies() {
 	const fragment = document.createDocumentFragment();
 
 	sorted.forEach((movie) => {
-		const item = document.createElement('button');
-		item.type = 'button';
+		const item = document.createElement('div');
 		item.className = 'watched-item';
-		item.title = 'Открыть в плеере';
-		if (movie.title === currentTitle) item.classList.add('selected');
-		item.addEventListener('click', () => loadWatchedMovie(movie));
+		item.title = '';
+		if (currentMovie && sameMovie(movie, currentMovie)) item.classList.add('selected');
+
+		const coverBtn = document.createElement('button');
+		coverBtn.type = 'button';
+		coverBtn.className = 'cover-btn';
+		coverBtn.title = 'Подробнее о фильме';
+		coverBtn.setAttribute('aria-label', 'Подробнее о фильме');
+		coverBtn.addEventListener('click', () => showMovieModal(movie));
 
 		const cover = document.createElement('img');
 		cover.className = 'cover';
@@ -721,12 +862,19 @@ function renderWatchedMovies() {
 		if (movie.cover) {
 			cover.src = resolveCoverUrl(movie.cover);
 			cover.addEventListener('error', () => {
+				coverBtn.classList.add('no-cover');
 				cover.style.display = 'none';
 			});
+		} else {
+			coverBtn.classList.add('no-cover');
 		}
+		coverBtn.appendChild(cover);
 
-		const info = document.createElement('span');
+		const info = document.createElement('button');
+		info.type = 'button';
 		info.className = 'info';
+		info.title = 'Открыть в плеере';
+		info.addEventListener('click', () => loadWatchedMovie(movie));
 
 		const title = document.createElement('span');
 		title.className = 'row title';
@@ -744,40 +892,261 @@ function renderWatchedMovies() {
 		info.appendChild(genre);
 		info.appendChild(year);
 
-		item.appendChild(cover);
+		const del = document.createElement('button');
+		del.type = 'button';
+		del.className = 'delete-btn';
+		del.title = 'Удалить из списка';
+		del.setAttribute('aria-label', 'Удалить из списка');
+		del.innerHTML = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M10 11v6M14 11v6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+		del.addEventListener('click', (event) => {
+			event.stopPropagation();
+			deleteWatchedMovie(movie);
+		});
+
+		item.appendChild(coverBtn);
 		item.appendChild(info);
+		item.appendChild(del);
 		fragment.appendChild(item);
 	});
 
 	watchedListElement.appendChild(fragment);
 }
 
-/**
- * Load a movie from the watched list into the player. Sources are always
- * re-fetched fresh (stored iframe tokens would expire), so the movie loads
- * reliably even long after it was added to the list.
- * @param {{ kinopoisk: string, type?: string, title: string, cover: string, genre: string, year: string }} movie
- */
+async function fetchMovieDetails(movie) {
+	const base = {
+		title: movie.title ?? '',
+		cover: movie.cover ?? '',
+		genre: movie.genre ?? '',
+		year: movie.year ?? '',
+		description: movie.description ?? '',
+		rating: movie.rating ?? '',
+		ageRating: movie.ageRating ?? '',
+		countries: movie.countries ?? '',
+		directors: movie.directors ?? '',
+		actors: movie.actors ?? '',
+		duration: movie.duration ?? '',
+		slogan: movie.slogan ?? '',
+		altTitle: movie.altTitle ?? '',
+	};
+
+	if (
+		base.title && base.cover && base.year &&
+		base.description && base.rating && base.ageRating &&
+		base.countries && base.duration && base.directors && base.actors
+	) {
+		return base;
+	}
+
+	if (!movie.kinopoisk) return base;
+
+	const fill = (current, value) => (value ? value : current);
+	const fromCache = async () => {
+		try {
+			if (typeof fetch !== 'function') return null;
+			const res = await fetch(`/api/kp-info?id=${encodeURIComponent(movie.kinopoisk)}`);
+			if (!res.ok) return null;
+			const c = await res.json().catch(() => null);
+			if (!c || typeof c !== 'object') return null;
+			return {
+				title: fill(base.title, c.title),
+				cover: fill(base.cover, c.cover),
+				genre: fill(base.genre, c.genre),
+				year: fill(base.year, c.year),
+				description: fill(base.description, c.description),
+				rating: fill(base.rating, c.rating),
+				ageRating: fill(base.ageRating, c.ageRating),
+				countries: fill(base.countries, c.countries),
+				directors: fill(base.directors, c.directors),
+				actors: fill(base.actors, c.actors),
+				duration: fill(base.duration, c.duration),
+				slogan: fill(base.slogan, c.slogan),
+				altTitle: fill(base.altTitle, c.altTitle),
+			};
+		} catch {
+			return null;
+		}
+	};
+
+	return (await fromCache()) || base;
+}
+
+async function showMovieModal(movie) {
+	closeMovieModal();
+
+	const overlay = document.createElement('div');
+	overlay.className = 'movie-modal-overlay';
+	overlay.addEventListener('click', (event) => {
+		if (event.target === overlay) closeMovieModal();
+	});
+
+	const modal = document.createElement('div');
+	modal.className = 'movie-modal';
+	modal.setAttribute('role', 'dialog');
+	modal.setAttribute('aria-modal', 'true');
+	modal.setAttribute('aria-label', movie.title || 'Информация о фильме');
+
+	const close = document.createElement('button');
+	close.type = 'button';
+	close.className = 'modal-close';
+	close.setAttribute('aria-label', 'Закрыть');
+	close.innerHTML = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
+	close.addEventListener('click', closeMovieModal);
+	modal.appendChild(close);
+
+	const media = document.createElement('div');
+	media.className = 'modal-media';
+	const poster = document.createElement('img');
+	poster.className = 'modal-poster';
+	poster.alt = '';
+	if (movie.cover) {
+		poster.src = resolveCoverUrl(movie.cover);
+		poster.addEventListener('error', () => poster.remove());
+	}
+	media.appendChild(poster);
+
+	const body = document.createElement('div');
+	body.className = 'modal-body';
+
+	const title = document.createElement('h2');
+	title.className = 'modal-title';
+	title.textContent = movie.title || 'Без названия';
+	body.appendChild(title);
+
+	const altTitle = document.createElement('div');
+	altTitle.className = 'modal-alt-title';
+	altTitle.hidden = !movie.altTitle;
+	altTitle.textContent = movie.altTitle || '';
+	body.appendChild(altTitle);
+
+	const headRow = document.createElement('div');
+	headRow.className = 'modal-head-row';
+	const ageBadge = document.createElement('span');
+	ageBadge.className = 'modal-age';
+	const ageText = formatAgeRating(movie.ageRating);
+	ageBadge.textContent = ageText;
+	ageBadge.hidden = !ageText;
+	const year = document.createElement('span');
+	year.className = 'modal-year';
+	year.textContent = movie.year || '';
+	headRow.appendChild(ageBadge);
+	headRow.appendChild(year);
+	headRow.hidden = !(ageText || movie.year);
+	body.appendChild(headRow);
+
+	const rating = document.createElement('div');
+	rating.className = 'modal-rating';
+	rating.hidden = !movie.rating;
+	rating.textContent = movie.rating ? `Кинопоиск — ${movie.rating}` : '';
+	body.appendChild(rating);
+
+	const slogan = document.createElement('p');
+	slogan.className = 'modal-slogan';
+	slogan.hidden = !movie.slogan;
+	slogan.textContent = movie.slogan || '';
+	body.appendChild(slogan);
+
+	const desc = document.createElement('p');
+	desc.className = 'modal-desc';
+	desc.hidden = !movie.description;
+	desc.textContent = movie.description || '';
+	body.appendChild(desc);
+
+	const aboutTitle = document.createElement('h3');
+	aboutTitle.className = 'modal-about-title';
+	aboutTitle.textContent = movie.type === 'series' ? 'О сериале' : 'О фильме';
+	aboutTitle.hidden = !(movie.countries || movie.genre || movie.directors || movie.actors || movie.duration);
+	body.appendChild(aboutTitle);
+
+	const about = document.createElement('dl');
+	about.className = 'modal-about';
+	appendAboutRow(about, 'Страна', movie.countries);
+	appendAboutRow(about, 'Жанр', movie.genre);
+	appendAboutRow(about, 'Режиссёр', movie.directors);
+	appendAboutRow(about, 'Актёры', movie.actors);
+	appendAboutRow(about, movie.type === 'series' ? 'Серия' : 'Время', movie.duration);
+	body.appendChild(about);
+
+	const remove = document.createElement('button');
+	remove.type = 'button';
+	remove.className = 'modal-remove';
+	remove.title = 'Удалить из списка';
+	remove.setAttribute('aria-label', 'Удалить из списка');
+	remove.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M10 11v6M14 11v6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+	remove.addEventListener('click', () => {
+		closeMovieModal();
+		deleteWatchedMovie(movie);
+	});
+	modal.appendChild(remove);
+
+	modal.appendChild(media);
+	modal.appendChild(body);
+	overlay.appendChild(modal);
+	document.body.appendChild(overlay);
+
+	const enriched = await fetchMovieDetails(movie);
+	if (!document.body.contains(overlay)) return;
+
+	if (enriched.title) title.textContent = enriched.title;
+	altTitle.hidden = !enriched.altTitle;
+	altTitle.textContent = enriched.altTitle || '';
+	const newAge = formatAgeRating(enriched.ageRating);
+	ageBadge.textContent = newAge;
+	ageBadge.hidden = !newAge;
+	year.textContent = enriched.year || '';
+	headRow.hidden = !(newAge || enriched.year);
+	if (enriched.rating) {
+		rating.hidden = false;
+		rating.textContent = `Кинопоиск — ${enriched.rating}`;
+	}
+	slogan.hidden = !enriched.slogan;
+	slogan.textContent = enriched.slogan || '';
+	desc.hidden = !enriched.description;
+	desc.textContent = enriched.description || '';
+	aboutTitle.hidden = !(enriched.countries || enriched.genre || enriched.directors || enriched.actors || enriched.duration);
+	about.innerHTML = '';
+	appendAboutRow(about, 'Страна', enriched.countries);
+	appendAboutRow(about, 'Жанр', enriched.genre);
+	appendAboutRow(about, 'Режиссёр', enriched.directors);
+	appendAboutRow(about, 'Актёры', enriched.actors);
+	appendAboutRow(about, movie.type === 'series' ? 'Серия' : 'Время', enriched.duration);
+	if (enriched.cover && enriched.cover !== movie.cover) {
+		poster.src = resolveCoverUrl(enriched.cover);
+		poster.style.display = 'block';
+	}
+}
+
+function appendAboutRow(list, label, value) {
+	if (!value) return;
+	const key = document.createElement('dt');
+	key.className = 'modal-about-label';
+	key.textContent = label;
+	const val = document.createElement('dd');
+	val.className = 'modal-about-value';
+	val.textContent = value;
+	list.appendChild(key);
+	list.appendChild(val);
+}
+
+function formatAgeRating(value) {
+	if (value === null || value === undefined || value === '') return '';
+	const clean = String(value).replace(/[^\d]/g, '');
+	return clean ? `${clean}+` : '';
+}
+
+function closeMovieModal() {
+	document.querySelectorAll('.movie-modal-overlay').forEach((el) => el.remove());
+}
+
 function loadWatchedMovie(movie) {
 	toggleSidebar(false);
 
-	const data = {
-		kinopoisk: movie.kinopoisk || undefined,
-		type: movie.type === 'series' ? 'series' : 'movie',
-		title: movie.title,
-		cover: movie.cover || undefined,
-		genre: movie.genre || undefined,
-		year: movie.year || undefined,
-	};
+	const { timestamp, ...rest } = movie;
+	const data = { ...rest, type: movie.type === 'series' ? 'series' : 'movie' };
 
 	logger.info('Loading watched movie', data);
 	init(data);
 }
 
-/**
- * Toggle the watched sidebar.
- * @param {boolean} open
- */
 function toggleSidebar(open) {
 	const isOpen = sidebarElement?.classList.toggle('open', open);
 	watchedToggleElement?.classList.toggle('active', open);
@@ -803,9 +1172,6 @@ function toggleWatchedSort() {
 	if (sidebarElement?.classList.contains('open')) renderWatchedMovies();
 }
 
-/**
- * Setup the script by getting cached movie data from URL
- */
 function setup() {
 	applyTheme(currentTheme);
 	try {
@@ -821,6 +1187,12 @@ function setup() {
 		sortToggleElement?.addEventListener('click', toggleWatchedSort);
 		updateSortToggleLabel();
 
+		seasonPrevElement?.addEventListener('click', () => setEpisode((currentEpisode?.season ?? 1) - 1, 1));
+		seasonNextElement?.addEventListener('click', () => setEpisode((currentEpisode?.season ?? 1) + 1, 1));
+		episodePrevElement?.addEventListener('click', () => setEpisode(currentEpisode?.season ?? 1, (currentEpisode?.number ?? 1) - 1));
+		episodeNextElement?.addEventListener('click', () => setEpisode(currentEpisode?.season ?? 1, (currentEpisode?.number ?? 1) + 1));
+		episodeNextBtnElement?.addEventListener('click', () => setEpisode(currentEpisode?.season ?? 1, (currentEpisode?.number ?? 1) + 1));
+
 		themeToggleElement?.addEventListener('click', () => {
 			const willOpen = !themeSidebarElement?.classList.contains('open');
 			toggleThemeSidebar(willOpen);
@@ -832,6 +1204,7 @@ function setup() {
 			if (event.key === 'Escape') {
 				toggleSidebar(false);
 				toggleThemeSidebar(false);
+				closeMovieModal();
 			}
 		});
 
@@ -846,7 +1219,7 @@ function setup() {
 				try {
 					parsed = JSON.parse(decodeURIComponent(movieParam));
 				} catch (error2) {
-					/* not JSON */
+
 				}
 			}
 
@@ -856,7 +1229,6 @@ function setup() {
 				return;
 			}
 
-			// Search param is a plain cache key -> look it up in local storage
 			const cachedByMovie = localStorage.getItem(movieParam);
 			if (cachedByMovie) {
 				try {
