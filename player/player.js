@@ -88,6 +88,8 @@ async function init(data, scriptVersion) {
 		}
 		renderEpisodeBar();
 
+		if (movieData?.kinopoisk) sendDetailsToServer(movieData);
+
 		const key = cacheMovieData(movieData);
 		currentMovieKey = key;
 
@@ -678,6 +680,31 @@ function cacheMovieData(movieData) {
 	return key;
 }
 
+function sendDetailsToServer(movieData) {
+	if (!movieData?.kinopoisk || typeof fetch !== 'function') return;
+	const payload = {
+		title: movieData.title || '',
+		type: movieData.type || '',
+		cover: movieData.cover || '',
+		genre: movieData.genre || '',
+		year: movieData.year || '',
+		rating: movieData.rating || '',
+		description: movieData.description || '',
+		slogan: movieData.slogan || '',
+		ageRating: movieData.ageRating || '',
+		countries: movieData.countries || '',
+		duration: movieData.duration || '',
+		directors: movieData.directors || '',
+		actors: movieData.actors || '',
+		altTitle: movieData.altTitle || '',
+	};
+	fetch(`/api/kp-info?id=${encodeURIComponent(movieData.kinopoisk)}`, {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify(payload),
+	}).catch(() => {});
+}
+
 function parseMovieData(data) {
 	if (typeof data !== 'object' || data === null) {
 		throw new Error(`Invalid movie data type: "${typeof data}"`);
@@ -978,8 +1005,8 @@ async function initFromKpId(kpId) {
 	try {
 		const movie = await fetchMovieDetails({ kinopoisk: kpId });
 		if (!movie.title) {
-			clearInitializationTimeout();
-			showPlayerText('Не удалось получить данные о фильме. Откройте его страницу на Кинопоиске и нажмите «Смотреть».');
+			logger.warn('No cached details for', kpId, '— trying playback by id');
+			await init({ kinopoisk: kpId, type: 'movie' });
 			return;
 		}
 		await init(movie);
