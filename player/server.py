@@ -4,6 +4,7 @@ import json
 import os
 import signal
 import socket
+import subprocess
 import sys
 import threading
 import urllib.parse
@@ -100,6 +101,17 @@ def _is_alive(pid):
         return True
     except OSError:
         return False
+
+
+def _announce_mdns(port):
+    try:
+        return subprocess.Popen(
+            ['avahi-publish-service', 'kinolink', '_http._tcp', str(port)],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+    except Exception:
+        return None
 
 
 class AlreadyRunning(Exception):
@@ -385,6 +397,8 @@ def main(argv=None):
     signal.signal(signal.SIGINT, _on_signal)
     signal.signal(signal.SIGTERM, _on_signal)
 
+    mdns_proc = _announce_mdns(port)
+
     if bind_host in ('0.0.0.0', '::'):
         print(f'KinoLink server on http://{bind_host}:{port} (локально: http://127.0.0.1:{port})', flush=True)
         print('Внимание: сервер доступен из локальной сети.', flush=True)
@@ -398,6 +412,11 @@ def main(argv=None):
     finally:
         server.server_close()
         _remove_server_info()
+        if mdns_proc:
+            try:
+                mdns_proc.terminate()
+            except Exception:
+                pass
     return 0
 
 

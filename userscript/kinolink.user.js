@@ -19,6 +19,7 @@
 	const CUSTOM_SERVER_URL = ''; // явный адрес сервера, например 'http://192.168.1.5:8080/'
 	const SERVER_DISCOVER_KEY = 'kinolink-server-url';
 	const SERVER_DISCOVER_RANGE = { start: 8080, end: 8129 };
+	const SERVER_MDNS_HOST = 'kinolink.local'; // локальный адрес сервера в сети (mDNS)
 
 	const logger = {
 		info: (...args) => console.info('[KinoLink Script]', ...args),
@@ -52,16 +53,26 @@
 		}
 		if (cached && (await probeServer(cached))) return cached;
 
-		for (let port = SERVER_DISCOVER_RANGE.start; port <= SERVER_DISCOVER_RANGE.end; port++) {
-			const candidate = `http://127.0.0.1:${port}/`;
-			if (await probeServer(candidate)) {
-				try {
-					localStorage.setItem(SERVER_DISCOVER_KEY, candidate);
-				} catch (error) {
+		const scanHost = async (host) => {
+			for (let port = SERVER_DISCOVER_RANGE.start; port <= SERVER_DISCOVER_RANGE.end; port++) {
+				const candidate = `http://${host}:${port}/`;
+				if (await probeServer(candidate)) {
+					try {
+						localStorage.setItem(SERVER_DISCOVER_KEY, candidate);
+					} catch (error) {
+					}
+					return candidate;
 				}
-				return candidate;
 			}
-		}
+			return null;
+		};
+
+		const local = await scanHost('127.0.0.1');
+		if (local) return local;
+
+		const mdns = await scanHost(SERVER_MDNS_HOST);
+		if (mdns) return mdns;
+
 		return PLAYER_URL;
 	}
 
