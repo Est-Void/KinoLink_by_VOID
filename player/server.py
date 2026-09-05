@@ -105,11 +105,20 @@ def _is_alive(pid):
 
 def _announce_mdns(port):
     try:
-        return subprocess.Popen(
+        utils = subprocess.check_output(['sh', '-c', 'command -v avahi-publish-service || true'], text=True).strip()
+        if not utils:
+            return None
+        host = subprocess.Popen(
+            ['avahi-publish-host', 'kinolink'],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        service = subprocess.Popen(
             ['avahi-publish-service', 'kinolink', '_http._tcp', str(port)],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
         )
+        return [host, service]
     except Exception:
         return None
 
@@ -413,10 +422,11 @@ def main(argv=None):
         server.server_close()
         _remove_server_info()
         if mdns_proc:
-            try:
-                mdns_proc.terminate()
-            except Exception:
-                pass
+            for proc in mdns_proc:
+                try:
+                    proc.terminate()
+                except Exception:
+                    pass
     return 0
 
 
