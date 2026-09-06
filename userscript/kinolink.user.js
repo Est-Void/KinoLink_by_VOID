@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         KinoLink by VOID
 // @namespace    kinolink
-// @version      0.7.2
+// @version      0.7.3
 // @description  light player for kinopoisk
 // @author       V01D4GE
 // @match        *://www.kinopoisk.ru/*
@@ -78,7 +78,7 @@
 
 	let observer = null;
 
-	console.info('[KinoLink Script] KinoLink by VOID v0.7.2 started');
+	console.info('[KinoLink Script] KinoLink by VOID v0.7.3 started');
 
 	function ensureWatchButton() {
 		const watchLaterWrapper = findWatchLaterWrapper();
@@ -347,7 +347,7 @@
 				}
 				if (attempt < 2) await new Promise((resolve) => setTimeout(resolve, 400));
 			}
-			logger.warn('Failed to cache details for movie', data.kinopoisk);
+			logger.warn('Failed to cache details for movie', data.kinopoisk, 'server:', base);
 		} catch (error) {
 			logger.warn('cacheDetails error', error);
 		}
