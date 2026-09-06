@@ -976,7 +976,12 @@ async function fetchMovieDetails(movie) {
 
 async function initFromKpId(kpId) {
 	try {
-		const movie = await fetchMovieDetails({ kinopoisk: kpId });
+		let movie = null;
+		for (let attempt = 0; attempt < 8; attempt++) {
+			movie = await fetchMovieDetails({ kinopoisk: kpId });
+			if (movie.title) break;
+			if (attempt < 7) await new Promise((resolve) => setTimeout(resolve, 500));
+		}
 		if (!movie.title) {
 			clearInitializationTimeout();
 			showPlayerText('Не удалось получить данные о фильме. Откройте его страницу на Кинопоиске и нажмите «Смотреть».');

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         KinoLink by VOID
 // @namespace    kinolink
-// @version      0.7.1
+// @version      0.7.2
 // @description  light player for kinopoisk
 // @author       V01D4GE
 // @match        *://www.kinopoisk.ru/*
@@ -78,7 +78,7 @@
 
 	let observer = null;
 
-	console.info('[KinoLink Script] KinoLink by VOID v0.7.1 started');
+	console.info('[KinoLink Script] KinoLink by VOID v0.7.2 started');
 
 	function ensureWatchButton() {
 		const watchLaterWrapper = findWatchLaterWrapper();
@@ -312,8 +312,8 @@
 	}
 
 	async function cacheDetails(data) {
-		if (!data?.kinopoisk) return;
-		if (typeof fetch !== 'function') return;
+		if (!data?.kinopoisk) return false;
+		if (typeof fetch !== 'function') return false;
 		try {
 			const base = await resolvePlayerUrl();
 			const payload = {
@@ -332,13 +332,26 @@
 				actors: data.actors || '',
 				altTitle: data.altTitle || '',
 			};
-			await fetch(`${base}api/kp-info?id=${encodeURIComponent(data.kinopoisk)}`, {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify(payload),
-			}).catch(() => {});
+			for (let attempt = 0; attempt < 3; attempt++) {
+				try {
+					const response = await fetch(`${base}api/kp-info?id=${encodeURIComponent(data.kinopoisk)}`, {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify(payload),
+					});
+					if (response.ok) {
+						logger.info('Details cached for movie', data.kinopoisk);
+						return true;
+					}
+				} catch (error) {
+				}
+				if (attempt < 2) await new Promise((resolve) => setTimeout(resolve, 400));
+			}
+			logger.warn('Failed to cache details for movie', data.kinopoisk);
 		} catch (error) {
+			logger.warn('cacheDetails error', error);
 		}
+		return false;
 	}
 
 	function cleanup() {
