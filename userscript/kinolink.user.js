@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         KinoLink by VOID
 // @namespace    kinolink
-// @version      0.7.0
+// @version      0.7.1
 // @description  light player for kinopoisk
 // @author       V01D4GE
 // @match        *://www.kinopoisk.ru/*
@@ -27,6 +27,7 @@
 	};
 
 	let playerUrlPromise = null;
+	let resolvedPlayerUrl = null;
 
 	async function probeServer(base) {
 		try {
@@ -67,14 +68,17 @@
 
 	function resolvePlayerUrl() {
 		if (!playerUrlPromise) {
-			playerUrlPromise = discoverPlayerUrl().then((url) => url);
+			playerUrlPromise = discoverPlayerUrl().then((url) => {
+				resolvedPlayerUrl = url;
+				return url;
+			});
 		}
 		return playerUrlPromise;
 	}
 
 	let observer = null;
 
-	console.info('[KinoLink Script] KinoLink by VOID v0.7.0 started');
+	console.info('[KinoLink Script] KinoLink by VOID v0.7.1 started');
 
 	function ensureWatchButton() {
 		const watchLaterWrapper = findWatchLaterWrapper();
@@ -293,14 +297,14 @@
 		};
 	}
 
-	async function openPlayer() {
+	function openPlayer() {
 		const data = extractMovieData();
 		if (!data) return logger.error('Failed to extract movie data');
 
 		logger.info('Opening player for movie', data);
-		const base = await resolvePlayerUrl();
-		logger.info('Player server:', base);
-		await cacheDetails(data);
+		if (data.kinopoisk) cacheDetails(data);
+
+		const base = resolvedPlayerUrl || PLAYER_URL;
 		const query = data.kinopoisk
 			? `?movie=${data.kinopoisk}`
 			: `?movie=${encodeURIComponent(JSON.stringify(data))}`;
@@ -346,6 +350,7 @@
 
 	function init() {
 		ensureWatchButton();
+		resolvePlayerUrl();
 
 		const data = extractMovieData();
 		if (data) cacheDetails(data);
