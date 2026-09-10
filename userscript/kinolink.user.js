@@ -1,14 +1,14 @@
 // ==UserScript==
 // @name         KinoLink by VOID
 // @namespace    kinolink
-// @version      0.8.5-dev
+// @version      0.8.5
 // @description  light player for kinopoisk
 // @author       V01D4GE
 // @match        *://www.kinopoisk.ru/*
 // @match        *://hd.kinopoisk.ru/*
 // @icon         none
-// @updateURL    https://github.com/Est-Void/KinoLink_by_VOID/raw/dev/userscript/kinolink.user.js
-// @downloadURL  https://github.com/Est-Void/KinoLink_by_VOID/raw/dev/userscript/kinolink.user.js
+// @updateURL    https://github.com/Est-Void/KinoLink_by_VOID/raw/main/userscript/kinolink.user.js
+// @downloadURL  https://github.com/Est-Void/KinoLink_by_VOID/raw/main/userscript/kinolink.user.js
 // @grant        GM_xmlhttpRequest
 // @connect      *
 // ==/UserScript==
@@ -19,7 +19,7 @@
 	const PLAYER_URL = 'http://127.0.0.1:8080/';
 	// Версия скрипта для проверки актуальности в плеере.
 	// Синхронизируй с @version выше и REQUIRED_SCRIPT_VERSION в player/config.js.
-	const SCRIPT_VERSION = '0.8.5-dev';
+	const SCRIPT_VERSION = '0.8.5';
 	// Автоопределение адреса сервера: если сервер поднялся не на 8080,
 	// клиент сам найдёт его перебором портов через /api/status.
 	const CUSTOM_SERVER_URL = ''; // адрес одного сервера, например 'http://192.168.1.5:8080/'
@@ -180,7 +180,7 @@
 
 	let observer = null;
 
-	console.info('[KinoLink Script] KinoLink by VOID v0.8.5-dev started');
+	console.info('[KinoLink Script] KinoLink by VOID v0.8.5 started');
 
 	function ensureWatchButton() {
 		const watchLaterWrapper = findWatchLaterWrapper();
