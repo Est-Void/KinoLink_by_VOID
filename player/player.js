@@ -126,9 +126,19 @@ function buildSourceUrl(provider, movieData) {
 	return provider.build(movieData);
 }
 
+function isSafeHttpUrl(value) {
+	if (typeof value !== 'string' || !value.trim()) return false;
+	try {
+		const url = new URL(value, location.origin);
+		return url.protocol === 'http:' || url.protocol === 'https:';
+	} catch {
+		return false;
+	}
+}
+
 async function fetchSources(movieData) {
 	const provided = Array.isArray(movieData?.sources)
-		? movieData.sources.filter((source) => source?.iframeUrl && source?.type)
+		? movieData.sources.filter((source) => typeof source?.type === 'string' && isSafeHttpUrl(source?.iframeUrl))
 		: [];
 	if (provided.length > 0) return provided;
 
@@ -175,7 +185,7 @@ async function fetchKinoboxSources(movieData) {
 			if (!response || !Array.isArray(response?.data)) continue;
 
 			const players = response.data
-				.filter((player) => player?.iframeUrl && player?.type)
+				.filter((player) => typeof player?.type === 'string' && isSafeHttpUrl(player?.iframeUrl))
 				.map((player) => ({ type: player.type, iframeUrl: player.iframeUrl }));
 
 			const turboIndex = players.findIndex((player) => player.type.toLowerCase() === 'turbo');
@@ -370,6 +380,11 @@ function selectSource(sourceData) {
 	// (vidsrc) дефолт S01E01 подставляет config.js.
 	if (sourceData?.provider) {
 		url = buildSourceUrl(sourceData.provider, currentMovie);
+	}
+	if (!isSafeHttpUrl(url)) {
+		logger.warn('Blocked unsafe player URL', url);
+		showPlayerText('Источник вернул некорректный адрес плеера. Выберите другой источник.');
+		return;
 	}
 
 	const frame = document.createElement('div');
@@ -593,8 +608,13 @@ function toggleThemeSidebar(open) {
 function cacheMovieData(movieData) {
 	const serialized = JSON.stringify(movieData);
 	const key = hashCode(serialized);
-	localStorage.setItem(key, serialized);
-	return key;
+	try {
+		localStorage.setItem(key, serialized);
+		return key;
+	} catch (error) {
+		logger.warn('Failed to cache movie data in browser storage', error);
+		return serialized;
+	}
 }
 
 function parseMovieData(data) {
@@ -607,11 +627,17 @@ function parseMovieData(data) {
 		'rating', 'description', 'slogan', 'ageRating', 'countries', 'duration',
 		'directors', 'actors', 'altTitle',
 	];
-	Object.keys(data).forEach((key) => {
-		if (!allowedKeys.includes(key)) delete data[key];
-	});
-
-	return data;
+	const movie = {};
+	for (const key of allowedKeys) {
+		if (key === 'sources') continue;
+		if (typeof data[key] === 'string') movie[key] = data[key];
+	}
+	if (Array.isArray(data.sources)) {
+		movie.sources = data.sources
+			.filter((source) => typeof source?.type === 'string' && isSafeHttpUrl(source?.iframeUrl))
+			.map((source) => ({ type: source.type, iframeUrl: source.iframeUrl }));
+	}
+	return movie;
 }
 
 function showMessage(text, type) {
@@ -739,12 +765,13 @@ function getWatchedMovies() {
 function resolveCoverUrl(rawUrl) {
 	if (!rawUrl) return '';
 	try {
-		const parsed = new URL(rawUrl);
+		const parsed = new URL(rawUrl, location.origin);
+		if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return '';
 		if (parsed.origin !== location.origin) {
-			return `/cover?url=${encodeURIComponent(rawUrl)}`;
+			return `/cover?url=${encodeURIComponent(parsed.href)}`;
 		}
 	} catch {
-		return rawUrl;
+		return '';
 	}
 	return rawUrl;
 }

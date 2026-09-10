@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 import argparse
+import ipaddress
 import json
 import os
 import signal
 import socket
 import sys
+import tempfile
 import threading
 import urllib.parse
 import urllib.request
@@ -17,12 +19,16 @@ BROWSER_UA = 'Mozilla/5.0 (X11; Linux x86_64; rv:154.0) Gecko/20100101 Firefox/1
 PROBE_UA = 'kinolink-probe/1.0'
 
 APP_NAME = 'kinolink'
-APP_VERSION = '0.7.1'
+APP_VERSION = '0.7.8'
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 KP_CACHE_FILE = os.path.join(BASE_DIR, '.kp-info-cache.json')
 SERVER_INFO_FILE = os.path.join(BASE_DIR, '.kinolink-server.json')
 MAX_CACHE_SIZE = 1024 * 1024
+MAX_COVER_SIZE = 8 * 1024 * 1024
+MAX_MOVIE_ID_LENGTH = 20
+KP_CACHE_LOCK = threading.Lock()
+ALLOWED_CORS_ORIGINS = {'https://www.kinopoisk.ru', 'https://hd.kinopoisk.ru'}
 
 
 def _load_kp_cache():
@@ -35,11 +41,41 @@ def _load_kp_cache():
 
 
 def _save_kp_cache(data):
+    temporary_path = None
     try:
-        with open(KP_CACHE_FILE, 'w', encoding='utf-8') as fh:
+        fd, temporary_path = tempfile.mkstemp(prefix='.kp-info-cache-', suffix='.tmp', dir=BASE_DIR)
+        with os.fdopen(fd, 'w', encoding='utf-8') as fh:
             json.dump(data, fh, ensure_ascii=False)
+        os.replace(temporary_path, KP_CACHE_FILE)
     except Exception:
-        pass
+        if temporary_path:
+            try:
+                os.unlink(temporary_path)
+            except OSError:
+                pass
+
+
+def _valid_movie_id(movie_id):
+    return movie_id.isdigit() and len(movie_id) <= MAX_MOVIE_ID_LENGTH
+
+
+def _safe_cover_target(target):
+    """Accept only ordinary web URLs; reject local and special network ranges."""
+    parsed = urllib.parse.urlparse(target)
+    if parsed.scheme.lower() not in ('http', 'https') or not parsed.hostname:
+        return False
+    try:
+        addresses = socket.getaddrinfo(parsed.hostname, parsed.port or 443, type=socket.SOCK_STREAM)
+        return bool(addresses) and all(ipaddress.ip_address(item[4][0]).is_global for item in addresses)
+    except (OSError, ValueError):
+        return False
+
+
+class SafeCoverRedirectHandler(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        if not _safe_cover_target(newurl):
+            return None
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
 
 
 def _probe_port(port, host='127.0.0.1', timeout=PROBE_TIMEOUT):
@@ -174,10 +210,13 @@ class Handler(SimpleHTTPRequestHandler):
             self.send_header('Cache-Control', 'no-store, max-age=0')
 
     def _cors_headers(self):
-        self.send_header('Access-Control-Allow-Origin', '*')
-        self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
-        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
-        self.send_header('Access-Control-Allow-Private-Network', 'true')
+        origin = self.headers.get('Origin')
+        if origin in ALLOWED_CORS_ORIGINS:
+            self.send_header('Access-Control-Allow-Origin', origin)
+            self.send_header('Vary', 'Origin')
+            self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+            self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+            self.send_header('Access-Control-Allow-Private-Network', 'true')
 
     def do_OPTIONS(self):
         self.send_response(204)
@@ -224,13 +263,14 @@ class Handler(SimpleHTTPRequestHandler):
         query = urllib.parse.urlparse(self.path).query
         params = urllib.parse.parse_qs(query)
         movie_id = (params.get('id') or [''])[0]
-        if not movie_id:
+        if not _valid_movie_id(movie_id):
             self.send_response(400)
             self._cors_headers()
             self.end_headers()
             self.wfile.write(b'{"error":"missing id"}')
             return
-        data = _load_kp_cache().get(movie_id)
+        with KP_CACHE_LOCK:
+            data = _load_kp_cache().get(movie_id)
         if not isinstance(data, dict) or not data.get('title'):
             data = {}
         body = json.dumps(data).encode('utf-8')
@@ -257,19 +297,19 @@ class Handler(SimpleHTTPRequestHandler):
             self.wfile.write(b'{"error":"bad payload"}')
             return
 
-        if not movie_id or not isinstance(payload, dict) or not payload.get('title'):
+        if not _valid_movie_id(movie_id) or not isinstance(payload, dict) or not isinstance(payload.get('title'), str) or not payload['title'].strip():
             self.send_response(400)
             self._cors_headers()
             self.end_headers()
             self.wfile.write(b'{"error":"missing id, payload or title"}')
             return
 
-        data = _load_kp_cache()
-        data[movie_id] = payload
-        if os.path.exists(KP_CACHE_FILE) and os.path.getsize(KP_CACHE_FILE) > MAX_CACHE_SIZE:
-            items = list(data.items())[-500:]
-            data = dict(items)
-        _save_kp_cache(data)
+        with KP_CACHE_LOCK:
+            data = _load_kp_cache()
+            data[movie_id] = payload
+            if os.path.exists(KP_CACHE_FILE) and os.path.getsize(KP_CACHE_FILE) > MAX_CACHE_SIZE:
+                data = dict(list(data.items())[-500:])
+            _save_kp_cache(data)
 
         self.send_response(200)
         self._cors_headers()
@@ -281,8 +321,7 @@ class Handler(SimpleHTTPRequestHandler):
         query = urllib.parse.urlparse(self.path).query
         params = urllib.parse.parse_qs(query)
         target = (params.get('url') or [''])[0]
-        scheme = urllib.parse.urlparse(target).scheme.lower()
-        if scheme not in ('http', 'https'):
+        if not _safe_cover_target(target):
             self._blank()
             return
         try:
@@ -290,11 +329,17 @@ class Handler(SimpleHTTPRequestHandler):
                 'User-Agent': BROWSER_UA,
                 'Accept': 'image/*,*/*;q=0.8',
             })
-            with urllib.request.urlopen(request, timeout=12) as response:
-                body = response.read()
-                content_type = response.headers.get('Content-Type') or 'image/jpeg'
-                if not content_type.startswith('image/'):
-                    content_type = 'image/jpeg'
+            opener = urllib.request.build_opener(SafeCoverRedirectHandler())
+            with opener.open(request, timeout=12) as response:
+                content_type = (response.headers.get_content_type() or '').lower()
+                content_length = response.headers.get('Content-Length')
+                if content_type == 'application/octet-stream' or not content_type.startswith('image/'):
+                    raise ValueError('response is not an image')
+                if content_length and int(content_length) > MAX_COVER_SIZE:
+                    raise ValueError('cover is too large')
+                body = response.read(MAX_COVER_SIZE + 1)
+                if len(body) > MAX_COVER_SIZE:
+                    raise ValueError('cover is too large')
             self.send_response(200)
             self.send_header('Content-Type', content_type)
             self.send_header('Content-Length', str(len(body)))
