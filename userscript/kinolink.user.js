@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         KinoLink by VOID
 // @namespace    kinolink
-// @version      0.8.5
+// @version      0.8.6-dev
 // @description  light player for kinopoisk
 // @author       V01D4GE
 // @match        *://www.kinopoisk.ru/*
@@ -19,7 +19,7 @@
 	const PLAYER_URL = 'http://127.0.0.1:8080/';
 	// Версия скрипта для проверки актуальности в плеере.
 	// Синхронизируй с @version выше и REQUIRED_SCRIPT_VERSION в player/config.js.
-	const SCRIPT_VERSION = '0.8.5';
+	const SCRIPT_VERSION = '0.8.6-dev';
 	// Автоопределение адреса сервера: если сервер поднялся не на 8080,
 	// клиент сам найдёт его перебором портов через /api/status.
 	const CUSTOM_SERVER_URL = ''; // адрес одного сервера, например 'http://192.168.1.5:8080/'
@@ -27,6 +27,7 @@
 	// `python3 player/server.py --lan`; доступные адреса проверяются автоматически.
 	const NETWORK_SERVER_URLS = []; // например ['http://192.168.1.5:8080/']
 	const SERVER_DISCOVER_KEY = 'kinolink-server-url';
+	const LOCAL_SERVER_SENTINEL = '__kinolink-local__';
 	const SERVER_DISCOVER_RANGE = { start: 8080, end: 8129 };
 	const SERVER_PROBE_TIMEOUT = 750;
 
@@ -112,6 +113,22 @@
 		}
 	}
 
+	function rememberLocalServer() {
+		try {
+			localStorage.setItem(SERVER_DISCOVER_KEY, LOCAL_SERVER_SENTINEL);
+		} catch (error) {
+			logger.warn('Failed to remember local KinoLink mode', error);
+		}
+	}
+
+	function hasLocalServerPreference() {
+		try {
+			return localStorage.getItem(SERVER_DISCOVER_KEY) === LOCAL_SERVER_SENTINEL;
+		} catch (error) {
+			return false;
+		}
+	}
+
 	function getStoredServerUrl() {
 		try {
 			return normalizeServerUrl(localStorage.getItem(SERVER_DISCOVER_KEY) || '');
@@ -175,12 +192,13 @@
 		);
 		const url = normalizeServerUrl(value || '');
 		if (url) rememberServerUrl(url);
+		else rememberLocalServer();
 		return url;
 	}
 
 	let observer = null;
 
-	console.info('[KinoLink Script] KinoLink by VOID v0.8.5 started');
+	console.info('[KinoLink Script] KinoLink by VOID v0.8.6-dev started');
 
 	function ensureWatchButton() {
 		const watchLaterWrapper = findWatchLaterWrapper();
@@ -406,11 +424,13 @@
 		logger.info('Opening player for movie', data);
 		const custom = normalizeServerUrl(CUSTOM_SERVER_URL);
 		const stored = getStoredServerUrl();
-		let base = custom || (isLoopbackUrl(stored) ? '' : stored);
+		const localPreferred = hasLocalServerPreference();
+		let base = custom || (localPreferred || isLoopbackUrl(stored) ? '' : stored);
 		// Выполняется прямо в обработчике клика, поэтому работает и в мобильных
 		// браузерах, запрещающих диалог после асинхронного поиска.
-		if (!base) base = askForServerUrl();
+		if (!base && !localPreferred) base = askForServerUrl();
 		if (!base) base = await resolvePlayerUrl();
+		if (!base && localPreferred) base = askForServerUrl();
 		if (!base) {
 			window.alert('Не удалось выбрать сервер KinoLink. Проверьте Wi‑Fi и адрес сервера.');
 			return;
