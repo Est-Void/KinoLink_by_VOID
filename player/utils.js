@@ -17,3 +17,13 @@ function getSearchParam(key) {
 	const url = new URL(location.href);
 	return url.searchParams.get(key);
 }
+
+function setSearchParam(key, value) {
+	try {
+		const url = new URL(location.href);
+		url.searchParams.set(key, value);
+		history.replaceState(null, '', url.toString());
+	} catch (error) {
+		logger.warn('Failed to update URL', error);
+	}
+}

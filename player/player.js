@@ -13,23 +13,12 @@ const themeToggleElement = document.getElementById('theme-toggle');
 const themeSidebarElement = document.getElementById('theme-sidebar');
 const themeCloseElement = document.querySelector('#theme-sidebar .sidebar-close');
 const themeListElement = document.getElementById('theme-list');
-const episodeBarElement = document.getElementById('episode-bar');
-const seasonLabelElement = document.getElementById('season-label');
-const episodeLabelElement = document.getElementById('episode-label');
-const seasonPrevElement = document.getElementById('season-prev');
-const seasonNextElement = document.getElementById('season-next');
-const episodePrevElement = document.getElementById('episode-prev');
-const episodeNextElement = document.getElementById('episode-next');
-const episodeNextBtnElement = document.getElementById('episode-next-btn');
 
-let currentMovieKey = getSearchParam('movie') ?? '';
 let currentResizeHandler = null;
 let currentMovie = null;
 let currentSources = [];
-let currentEpisode = null;
 let currentSource = null;
 
-const EPISODE_KEY = 'kinolink-episodes';
 const WATCHED_KEY = 'kinolink-watched-movies';
 const WATCHED_SORT_KEY = 'kinolink-watched-sort';
 const THEME_KEY = 'kinolink-theme';
@@ -74,7 +63,6 @@ async function init(data, scriptVersion) {
 
 		currentMovie = null;
 		currentSources = [];
-		currentEpisode = null;
 		currentSource = null;
 
 		const movieData = parseMovieData(data);
@@ -82,14 +70,9 @@ async function init(data, scriptVersion) {
 		logger.info('Initialization started', movieData);
 
 		currentMovie = movieData;
-		if (movieData?.type === 'series') {
-			currentEpisode = loadEpisode(movieData);
-			currentMovie = { ...movieData, episode: currentEpisode };
-		}
-		renderEpisodeBar();
 
-		const key = cacheMovieData(movieData);
-		currentMovieKey = key;
+		// Кэшируем данные и укорачиваем URL до ключа (рефреш/закладки).
+		setSearchParam('movie', cacheMovieData(movieData));
 
 		if (movieData?.title) {
 			saveWatchedMovie(movieData);
@@ -138,8 +121,7 @@ async function init(data, scriptVersion) {
 }
 
 function buildSourceUrl(provider, movieData) {
-	if (typeof provider.build === 'function') return provider.build(movieData);
-	return provider.template.replace('{imdb}', movieData.imdb);
+	return provider.build(movieData);
 }
 
 async function fetchSources(movieData) {
@@ -158,7 +140,7 @@ async function fetchSources(movieData) {
 	if (sources.length === 0) {
 		const imdb = await resolveImdbId(movieData);
 		if (!imdb) return [];
-		currentMovie = { ...movieData, imdb, episode: currentEpisode };
+		currentMovie = { ...movieData, imdb };
 		sources = PROVIDERS.map((provider) => ({
 			type: provider.type,
 			iframeUrl: buildSourceUrl(provider, currentMovie),
@@ -381,12 +363,11 @@ function selectSource(sourceData) {
 	currentSource = sourceData;
 
 	let url = sourceData?.iframeUrl ?? '';
-	if (currentMovie?.type === 'series' && currentEpisode) {
-		if (sourceData?.provider) {
-			url = buildSourceUrl(sourceData.provider, { ...currentMovie, episode: currentEpisode });
-		} else {
-			url = applyEpisodeToUrl(url);
-		}
+	// Серии/сезоны переключаются внутри самих плееров (API-источники),
+	// поэтому URL источника используем как есть. Для embed-провайдеров
+	// (vidsrc) дефолт S01E01 подставляет config.js.
+	if (sourceData?.provider) {
+		url = buildSourceUrl(sourceData.provider, currentMovie);
 	}
 
 	const frame = document.createElement('div');
@@ -403,74 +384,11 @@ function selectSource(sourceData) {
 	fitPlayerFrame();
 }
 
-function applyEpisodeToUrl(url) {
-	try {
-		const parsed = new URL(url, location.href);
-		parsed.searchParams.set('season', String(currentEpisode.season));
-		parsed.searchParams.set('episode', String(currentEpisode.number));
-		return parsed.toString();
-	} catch {
-		return url;
-	}
-}
-
-function episodeStorageKey(movie) {
-	return movie?.kinopoisk ? `kp:${movie.kinopoisk}` : `t:${movie?.title ?? ''}`;
-}
-
-function loadEpisode(movie) {
-	try {
-		const raw = localStorage.getItem(EPISODE_KEY);
-		const map = raw ? JSON.parse(raw) : {};
-		const saved = map[episodeStorageKey(movie)];
-		if (saved && Number.isInteger(saved.season) && Number.isInteger(saved.number)) {
-			return { season: Math.max(1, saved.season), number: Math.max(1, saved.number) };
-		}
-	} catch (error) {
-		logger.warn('Failed to read episode memory', error);
-	}
-	return { season: 1, number: 1 };
-}
-
-function saveEpisode() {
-	if (!currentMovie || !currentEpisode) return;
-	try {
-		const raw = localStorage.getItem(EPISODE_KEY);
-		const map = raw ? JSON.parse(raw) : {};
-		map[episodeStorageKey(currentMovie)] = currentEpisode;
-		localStorage.setItem(EPISODE_KEY, JSON.stringify(map));
-	} catch (error) {
-		logger.warn('Failed to save episode memory', error);
-	}
-}
-
-function setEpisode(season, number) {
-	if (currentMovie?.type !== 'series') return;
-	currentEpisode = {
-		season: Math.max(1, Math.trunc(season) || 1),
-		number: Math.max(1, Math.trunc(number) || 1),
-	};
-	currentMovie = { ...currentMovie, episode: currentEpisode };
-	saveEpisode();
-	renderEpisodeBar();
-	if (currentSource) selectSource(currentSource);
-}
-
-function renderEpisodeBar() {
-	if (!episodeBarElement) return;
-	const isSeries = currentMovie?.type === 'series';
-	episodeBarElement.hidden = !isSeries;
-	if (!isSeries || !currentEpisode) return;
-	if (seasonLabelElement) seasonLabelElement.textContent = `Сезон ${currentEpisode.season}`;
-	if (episodeLabelElement) episodeLabelElement.textContent = `Серия ${currentEpisode.number}`;
-}
-
 function fitPlayerFrame() {
 	const frame = contentElement.querySelector('.frame');
 	if (!frame) return;
 
-	const episodeBar = (!episodeBarElement?.hidden && episodeBarElement?.offsetHeight) || 0;
-	const chrome = (headerElement?.offsetHeight ?? 64) + (sourcesElement?.offsetHeight ?? 56) + episodeBar + 24;
+	const chrome = (headerElement?.offsetHeight ?? 64) + (sourcesElement?.offsetHeight ?? 56) + 24;
 	const availableHeight = Math.max(window.innerHeight - chrome - 12, 120);
 
 	let width = contentElement.clientWidth || window.innerWidth;
@@ -673,7 +591,6 @@ function toggleThemeSidebar(open) {
 function cacheMovieData(movieData) {
 	const serialized = JSON.stringify(movieData);
 	const key = hashCode(serialized);
-
 	localStorage.setItem(key, serialized);
 	return key;
 }
@@ -948,7 +865,7 @@ async function fetchMovieDetails(movie) {
 			const res = await fetch(`/api/kp-info?id=${encodeURIComponent(movie.kinopoisk)}`);
 			if (!res.ok) return null;
 			const c = await res.json().catch(() => null);
-			if (!c || typeof c !== 'object') return null;
+			if (!c || typeof c !== 'object' || !c.title) return null;
 			return {
 				kinopoisk: base.kinopoisk || c.kinopoisk || '',
 				type: base.type || c.type || '',
@@ -982,10 +899,10 @@ async function initFromKpId(kpId) {
 			if (movie.title) break;
 			if (attempt < 7) await new Promise((resolve) => setTimeout(resolve, 500));
 		}
+		if (!movie) movie = { kinopoisk: kpId };
 		if (!movie.title) {
-			clearInitializationTimeout();
-			showPlayerText('Не удалось получить данные о фильме. Откройте его страницу на Кинопоиске и нажмите «Смотреть».');
-			return;
+			logger.warn('No cached details for movie id, playing with minimal data', kpId);
+			movie = { ...movie, type: movie.type || 'movie', title: `Фильм ${kpId}` };
 		}
 		await init(movie);
 	} catch (error) {
@@ -1212,12 +1129,6 @@ function setup() {
 		sortToggleElement?.addEventListener('click', toggleWatchedSort);
 		updateSortToggleLabel();
 
-		seasonPrevElement?.addEventListener('click', () => setEpisode((currentEpisode?.season ?? 1) - 1, 1));
-		seasonNextElement?.addEventListener('click', () => setEpisode((currentEpisode?.season ?? 1) + 1, 1));
-		episodePrevElement?.addEventListener('click', () => setEpisode(currentEpisode?.season ?? 1, (currentEpisode?.number ?? 1) - 1));
-		episodeNextElement?.addEventListener('click', () => setEpisode(currentEpisode?.season ?? 1, (currentEpisode?.number ?? 1) + 1));
-		episodeNextBtnElement?.addEventListener('click', () => setEpisode(currentEpisode?.season ?? 1, (currentEpisode?.number ?? 1) + 1));
-
 		themeToggleElement?.addEventListener('click', () => {
 			const willOpen = !themeSidebarElement?.classList.contains('open');
 			toggleThemeSidebar(willOpen);
@@ -1266,7 +1177,6 @@ function setup() {
 					const cachedMovie = JSON.parse(cachedByMovie);
 					if (typeof cachedMovie === 'object' && cachedMovie !== null && cachedMovie.title) {
 						logger.info('Cached data found by movie param:', cachedMovie);
-						currentMovieKey = movieParam;
 						init(cachedMovie);
 						return;
 					}
@@ -1276,21 +1186,17 @@ function setup() {
 			}
 		}
 
-		const movieKey = getSearchParam('key');
-		if (movieKey) currentMovieKey = movieKey;
+		if (!movieParam) {
+			clearInitializationTimeout();
+			showPlayerText('Откройте страницу фильма на Кинопоиске и нажмите «Смотреть».');
+			return;
+		}
 
-		const cachedData = movieKey ? localStorage.getItem(movieKey) : null;
-		if (!cachedData) return;
-
-		const movieData = JSON.parse(cachedData);
-		if (typeof movieData !== 'object') return;
-
-		logger.info('Cached data was found:', movieData);
-		init(movieData);
+		clearInitializationTimeout();
+		showPlayerText('Не удалось понять, какой фильм открыть. Откройте его страницу на Кинопоиске и нажмите «Смотреть».');
 	} catch (error) {
 		logger.error('Setup error', error);
 	}
-	clearTimeout(initializationTimeoutTimer);
 }
 
 document.addEventListener('DOMContentLoaded', setup);

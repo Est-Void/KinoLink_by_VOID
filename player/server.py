@@ -10,7 +10,6 @@ import urllib.parse
 import urllib.request
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 
-KINOBOX_REMOTE = 'https://api.kinobox.tv/api/players'
 DEFAULT_PORT = 8080
 MAX_AUTO_PORT = 8129
 PROBE_TIMEOUT = 0.4
@@ -18,7 +17,7 @@ BROWSER_UA = 'Mozilla/5.0 (X11; Linux x86_64; rv:154.0) Gecko/20100101 Firefox/1
 PROBE_UA = 'kinolink-probe/1.0'
 
 APP_NAME = 'kinolink'
-APP_VERSION = '0.7.0'
+APP_VERSION = '0.7.1'
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 KP_CACHE_FILE = os.path.join(BASE_DIR, '.kp-info-cache.json')
@@ -171,7 +170,7 @@ def bind_server(host, forced_port):
 class Handler(SimpleHTTPRequestHandler):
     def send_response(self, code, message=None):
         super().send_response(code, message)
-        if not self.path.startswith('/api/kinobox') and not self.path.startswith('/cover'):
+        if not self.path.startswith('/cover'):
             self.send_header('Cache-Control', 'no-store, max-age=0')
 
     def _cors_headers(self):
@@ -188,9 +187,6 @@ class Handler(SimpleHTTPRequestHandler):
     def do_GET(self):
         if self.path.startswith('/api/status'):
             self._api_status()
-            return
-        if self.path.startswith('/api/kinobox'):
-            self._kinobox_proxy()
             return
         if self.path.startswith('/api/kp-info'):
             self._kp_info_get()
@@ -235,7 +231,9 @@ class Handler(SimpleHTTPRequestHandler):
             self.wfile.write(b'{"error":"missing id"}')
             return
         data = _load_kp_cache().get(movie_id)
-        body = json.dumps(data if isinstance(data, dict) else {}).encode('utf-8')
+        if not isinstance(data, dict) or not data.get('title'):
+            data = {}
+        body = json.dumps(data).encode('utf-8')
         self.send_response(200)
         self._cors_headers()
         self.send_header('Content-Type', 'application/json; charset=utf-8')
@@ -259,11 +257,11 @@ class Handler(SimpleHTTPRequestHandler):
             self.wfile.write(b'{"error":"bad payload"}')
             return
 
-        if not movie_id or not isinstance(payload, dict):
+        if not movie_id or not isinstance(payload, dict) or not payload.get('title'):
             self.send_response(400)
             self._cors_headers()
             self.end_headers()
-            self.wfile.write(b'{"error":"missing id or payload"}')
+            self.wfile.write(b'{"error":"missing id, payload or title"}')
             return
 
         data = _load_kp_cache()
@@ -312,31 +310,6 @@ class Handler(SimpleHTTPRequestHandler):
         self.send_header('Content-Length', '43')
         self.end_headers()
         self.wfile.write(b'GIF89a\x01\x00\x01\x00\x00\x00\x00!\xf9\x04\x01\x00\x00\x00\x00,\x00\x00\x00\x00\x01\x00\x01\x00\x00\x02\x01D\x00;')
-
-    def _kinobox_proxy(self):
-        try:
-            query = urllib.parse.urlparse(self.path).query
-            url = KINOBOX_REMOTE + (('?' + query) if query else '')
-            request = urllib.request.Request(url, headers={
-                'Origin': 'https://tapeop.dev',
-                'Referer': 'https://tapeop.dev/',
-                'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64; rv:154.0) Gecko/20100101 Firefox/154.0',
-                'Accept': 'application/json',
-            })
-            with urllib.request.urlopen(request, timeout=12) as response:
-                body = response.read()
-            self.send_response(200)
-            self.send_header('Content-Type', 'application/json')
-            self.send_header('X-Kinobox-Proxied', '1')
-            self.end_headers()
-            self.wfile.write(body)
-        except Exception as exc:
-            body = json.dumps({'error': str(exc)}).encode()
-            self.send_response(502)
-            self.send_header('Content-Type', 'application/json')
-            self.end_headers()
-            self.wfile.write(body)
-
 
 def main(argv=None):
     parser = argparse.ArgumentParser(

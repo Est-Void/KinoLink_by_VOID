@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         KinoLink by VOID
 // @namespace    kinolink
-// @version      0.7.3
+// @version      0.7.5
 // @description  light player for kinopoisk
 // @author       V01D4GE
 // @match        *://www.kinopoisk.ru/*
@@ -78,7 +78,7 @@
 
 	let observer = null;
 
-	console.info('[KinoLink Script] KinoLink by VOID v0.7.3 started');
+	console.info('[KinoLink Script] KinoLink by VOID v0.7.5 started');
 
 	function ensureWatchButton() {
 		const watchLaterWrapper = findWatchLaterWrapper();
@@ -305,14 +305,14 @@
 		if (data.kinopoisk) cacheDetails(data);
 
 		const base = resolvedPlayerUrl || PLAYER_URL;
-		const query = data.kinopoisk
-			? `?movie=${data.kinopoisk}`
-			: `?movie=${encodeURIComponent(JSON.stringify(data))}`;
+		// Передаём данные целиком: плеер сразу получает title/cover без
+		// ожидания фонового POST (см. cacheDetails) и гонок с кэшем.
+		const query = `?movie=${encodeURIComponent(JSON.stringify(data))}`;
 		window.open(`${base}${query}`, '_blank');
 	}
 
 	async function cacheDetails(data) {
-		if (!data?.kinopoisk) return false;
+		if (!data?.kinopoisk || !data?.title) return false;
 		if (typeof fetch !== 'function') return false;
 		try {
 			const base = await resolvePlayerUrl();
