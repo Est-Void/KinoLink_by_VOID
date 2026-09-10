@@ -9,7 +9,7 @@ const TMDB_LANGUAGE = 'ru-RU';
 
 // Минимальная версия юзерскрипта, с которой корректно работает плеер.
 // Синхронизируй с @version в userscript/kinolink.user.js при релизе.
-const REQUIRED_SCRIPT_VERSION = '0.8.2-dev';
+const REQUIRED_SCRIPT_VERSION = '0.8.3-dev';
 
 // Ссылка на обновление скрипта (та же, что в README → установка скрипта).
 const SCRIPT_UPDATE_URL = 'https://github.com/Est-Void/KinoLink_by_VOID/raw/dev/userscript/kinolink.user.js';

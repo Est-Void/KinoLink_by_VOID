@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         KinoLink by VOID
 // @namespace    kinolink
-// @version      0.8.2-dev
+// @version      0.8.3-dev
 // @description  light player for kinopoisk
 // @author       V01D4GE
 // @match        *://www.kinopoisk.ru/*
@@ -18,7 +18,7 @@
 	const PLAYER_URL = 'http://127.0.0.1:8080/';
 	// Версия скрипта для проверки актуальности в плеере.
 	// Синхронизируй с @version выше и REQUIRED_SCRIPT_VERSION в player/config.js.
-	const SCRIPT_VERSION = '0.8.2-dev';
+	const SCRIPT_VERSION = '0.8.3-dev';
 	// Автоопределение адреса сервера: если сервер поднялся не на 8080,
 	// клиент сам найдёт его перебором портов через /api/status.
 	const CUSTOM_SERVER_URL = ''; // адрес одного сервера, например 'http://192.168.1.5:8080/'
@@ -152,7 +152,7 @@
 
 	let observer = null;
 
-	console.info('[KinoLink Script] KinoLink by VOID v0.8.2-dev started');
+	console.info('[KinoLink Script] KinoLink by VOID v0.8.3-dev started');
 
 	function ensureWatchButton() {
 		const watchLaterWrapper = findWatchLaterWrapper();
@@ -376,16 +376,18 @@
 		if (!data) return logger.error('Failed to extract movie data');
 
 		logger.info('Opening player for movie', data);
-		// Открываем окно синхронно с кликом, иначе браузер может принять его за popup
-		// после ожидания поиска сервера.
-		const playerWindow = window.open('', '_blank');
+		// На десктопе резервируем окно синхронно с кликом, иначе браузер может
+		// принять его за popup после поиска. На мобильном ждём введённый адрес:
+		// это не оставляет пользователя на about:blank.
+		const mobile = isMobileBrowser();
+		const playerWindow = mobile ? null : window.open('', '_blank');
 		const custom = normalizeServerUrl(CUSTOM_SERVER_URL);
 		const stored = getStoredServerUrl();
-		const reusable = custom || (isMobileBrowser() && !isLoopbackUrl(stored) ? stored : '');
+		const reusable = custom || (mobile && !isLoopbackUrl(stored) ? stored : '');
 		let base = reusable;
-		if (!base && isMobileBrowser()) base = askForServerUrl();
+		if (!base && mobile) base = askForServerUrl();
 		if (!base) base = await resolvePlayerUrl();
-		if (!base && !isMobileBrowser()) base = askForServerUrl();
+		if (!base && !mobile) base = askForServerUrl();
 		if (!base) {
 			playerWindow?.close();
 			window.alert('Не удалось выбрать сервер KinoLink. Проверьте Wi‑Fi и адрес сервера.');
