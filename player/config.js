@@ -7,6 +7,13 @@ const TMDB_API_KEY = '';
 const TMDB_API_BASE = 'https://api.themoviedb.org/3';
 const TMDB_LANGUAGE = 'ru-RU';
 
+// Минимальная версия юзерскрипта, с которой корректно работает плеер.
+// Синхронизируй с @version в userscript/kinolink.user.js при релизе.
+const REQUIRED_SCRIPT_VERSION = '0.7.6';
+
+// Ссылка на обновление скрипта (та же, что в README → установка скрипта).
+const SCRIPT_UPDATE_URL = 'https://github.com/Est-Void/KinoLink_by_VOID/raw/main/userscript/kinolink.user.js';
+
 function embedUrl(movieData, moviePath, seriesPath) {
 	const imdb = movieData.imdb;
 	const episode = { season: 1, number: 1, ...(movieData.episode || {}) };

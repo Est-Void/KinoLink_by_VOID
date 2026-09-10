@@ -27,3 +27,7 @@ function setSearchParam(key, value) {
 		logger.warn('Failed to update URL', error);
 	}
 }
+
+function parseVersion(version) {
+	return parseInt(String(version).replace(/\D/g, ''), 10);
+}

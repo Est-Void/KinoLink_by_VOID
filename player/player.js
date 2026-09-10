@@ -110,6 +110,8 @@ async function init(data, scriptVersion) {
 		backgroundElement.classList.add('visible');
 		clearInitializationTimeout();
 
+		if (typeof scriptVersion === 'string') checkVersion(scriptVersion);
+
 		if (currentTheme === 'dynamic') {
 			applyDynamicBackdrop(movieData.cover);
 		}
@@ -641,6 +643,48 @@ function showPlayerText(messageText) {
 	contentElement.appendChild(playerTextElement);
 }
 
+function showUpdateToast(scriptVersion) {
+	if (document.getElementById('update-toast')) return;
+
+	const toast = document.createElement('div');
+	toast.id = 'update-toast';
+	toast.className = 'update-toast';
+	toast.setAttribute('role', 'alert');
+	toast.title = 'Открыть обновление скрипта';
+
+	const text = document.createElement('span');
+	text.className = 'update-toast-text';
+	text.textContent = `Доступна новая версия скрипта (${scriptVersion} → ${REQUIRED_SCRIPT_VERSION}). Нажмите, чтобы обновить.`;
+	toast.appendChild(text);
+
+	const close = document.createElement('button');
+	close.type = 'button';
+	close.className = 'update-toast-close';
+	close.setAttribute('aria-label', 'Закрыть');
+	close.textContent = '×';
+	close.addEventListener('click', (event) => {
+		event.stopPropagation();
+		toast.remove();
+	});
+	toast.appendChild(close);
+
+	toast.addEventListener('click', () => window.open(SCRIPT_UPDATE_URL, '_blank'));
+	document.body.appendChild(toast);
+}
+
+function checkVersion(scriptVersion) {
+	if (typeof scriptVersion !== 'string' || !scriptVersion) return;
+	if (scriptVersion === REQUIRED_SCRIPT_VERSION) return;
+	try {
+		if (parseVersion(scriptVersion) < parseVersion(REQUIRED_SCRIPT_VERSION)) {
+			showUpdateToast(scriptVersion);
+			logger.warn(`Requires script version ${REQUIRED_SCRIPT_VERSION} but the installed one is ${scriptVersion}`);
+		}
+	} catch (error) {
+		logger.error('Error while checking script version', error);
+	}
+}
+
 function sameMovie(a, b) {
 	if (!a || !b) return false;
 	if (a.kinopoisk && b.kinopoisk) return a.kinopoisk === b.kinopoisk;
@@ -1161,7 +1205,7 @@ function setup() {
 
 			if (parsed && typeof parsed === 'object' && typeof parsed.title === 'string') {
 				logger.info('Movie data from URL:', parsed);
-				init(parsed);
+				init(parsed, getSearchParam('script'));
 				return;
 			}
 

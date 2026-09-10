@@ -1,12 +1,14 @@
 // ==UserScript==
 // @name         KinoLink by VOID
 // @namespace    kinolink
-// @version      0.7.5
+// @version      0.7.6
 // @description  light player for kinopoisk
 // @author       V01D4GE
 // @match        *://www.kinopoisk.ru/*
 // @match        *://hd.kinopoisk.ru/*
 // @icon         none
+// @updateURL    https://github.com/Est-Void/KinoLink_by_VOID/raw/main/userscript/kinolink.user.js
+// @downloadURL  https://github.com/Est-Void/KinoLink_by_VOID/raw/main/userscript/kinolink.user.js
 // @grant        none
 // ==/UserScript==
 
@@ -14,6 +16,9 @@
 	'use strict';
 
 	const PLAYER_URL = 'http://127.0.0.1:8080/';
+	// Версия скрипта для проверки актуальности в плеере.
+	// Синхронизируй с @version выше и REQUIRED_SCRIPT_VERSION в player/config.js.
+	const SCRIPT_VERSION = '0.7.6';
 	// Автоопределение адреса сервера: если сервер поднялся не на 8080,
 	// клиент сам найдёт его перебором портов через /api/status.
 	const CUSTOM_SERVER_URL = ''; // явный адрес сервера, например 'http://192.168.1.5:8080/'
@@ -78,7 +83,7 @@
 
 	let observer = null;
 
-	console.info('[KinoLink Script] KinoLink by VOID v0.7.5 started');
+	console.info('[KinoLink Script] KinoLink by VOID v0.7.6 started');
 
 	function ensureWatchButton() {
 		const watchLaterWrapper = findWatchLaterWrapper();
@@ -307,7 +312,8 @@
 		const base = resolvedPlayerUrl || PLAYER_URL;
 		// Передаём данные целиком: плеер сразу получает title/cover без
 		// ожидания фонового POST (см. cacheDetails) и гонок с кэшем.
-		const query = `?movie=${encodeURIComponent(JSON.stringify(data))}`;
+		// SCRIPT_VERSION позволяет плееру заметить устаревший скрипт.
+		const query = `?movie=${encodeURIComponent(JSON.stringify(data))}&script=${encodeURIComponent(SCRIPT_VERSION)}`;
 		window.open(`${base}${query}`, '_blank');
 	}
 
