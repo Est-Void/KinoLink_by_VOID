@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         KinoLink by VOID
 // @namespace    kinolink
-// @version      0.8.6
+// @version      0.8.7-dev
 // @description  light player for kinopoisk
 // @author       V01D4GE
 // @match        *://www.kinopoisk.ru/*
@@ -10,6 +10,8 @@
 // @updateURL    https://github.com/Est-Void/KinoLink_by_VOID/raw/main/userscript/kinolink.user.js
 // @downloadURL  https://github.com/Est-Void/KinoLink_by_VOID/raw/main/userscript/kinolink.user.js
 // @grant        GM_xmlhttpRequest
+// @grant        GM_getValue
+// @grant        GM_setValue
 // @connect      *
 // ==/UserScript==
 
@@ -19,7 +21,7 @@
 	const PLAYER_URL = 'http://127.0.0.1:8080/';
 	// Версия скрипта для проверки актуальности в плеере.
 	// Синхронизируй с @version выше и REQUIRED_SCRIPT_VERSION в player/config.js.
-	const SCRIPT_VERSION = '0.8.6';
+	const SCRIPT_VERSION = '0.8.7-dev';
 	// Автоопределение адреса сервера: если сервер поднялся не на 8080,
 	// клиент сам найдёт его перебором портов через /api/status.
 	const CUSTOM_SERVER_URL = ''; // адрес одного сервера, например 'http://192.168.1.5:8080/'
@@ -107,6 +109,7 @@
 
 	function rememberServerUrl(url) {
 		try {
+			if (typeof GM_setValue === 'function') GM_setValue(SERVER_DISCOVER_KEY, url);
 			localStorage.setItem(SERVER_DISCOVER_KEY, url);
 		} catch (error) {
 			logger.warn('Failed to remember KinoLink server URL', error);
@@ -115,6 +118,7 @@
 
 	function rememberLocalServer() {
 		try {
+			if (typeof GM_setValue === 'function') GM_setValue(SERVER_DISCOVER_KEY, LOCAL_SERVER_SENTINEL);
 			localStorage.setItem(SERVER_DISCOVER_KEY, LOCAL_SERVER_SENTINEL);
 		} catch (error) {
 			logger.warn('Failed to remember local KinoLink mode', error);
@@ -123,6 +127,7 @@
 
 	function hasLocalServerPreference() {
 		try {
+			if (typeof GM_getValue === 'function' && GM_getValue(SERVER_DISCOVER_KEY, '') === LOCAL_SERVER_SENTINEL) return true;
 			return localStorage.getItem(SERVER_DISCOVER_KEY) === LOCAL_SERVER_SENTINEL;
 		} catch (error) {
 			return false;
@@ -131,6 +136,10 @@
 
 	function getStoredServerUrl() {
 		try {
+			if (typeof GM_getValue === 'function') {
+				const stored = GM_getValue(SERVER_DISCOVER_KEY, '');
+				if (typeof stored === 'string' && stored !== LOCAL_SERVER_SENTINEL) return normalizeServerUrl(stored);
+			}
 			return normalizeServerUrl(localStorage.getItem(SERVER_DISCOVER_KEY) || '');
 		} catch (error) {
 			return '';
@@ -426,12 +435,21 @@
 		const stored = getStoredServerUrl();
 		const localPreferred = hasLocalServerPreference();
 		let base = custom || (localPreferred || isLoopbackUrl(stored) ? '' : stored);
+		let playerWindow = null;
 		// Выполняется прямо в обработчике клика, поэтому работает и в мобильных
 		// браузерах, запрещающих диалог после асинхронного поиска.
 		if (!base && !localPreferred) base = askForServerUrl();
-		if (!base) base = await resolvePlayerUrl();
+		if (!base) {
+			playerWindow = window.open('', '_blank');
+			if (playerWindow) {
+				playerWindow.document.title = 'KinoLink';
+				playerWindow.document.body.textContent = 'Подключение к серверу KinoLink…';
+			}
+			base = await resolvePlayerUrl();
+		}
 		if (!base && localPreferred) base = askForServerUrl();
 		if (!base) {
+			playerWindow?.close();
 			window.alert('Не удалось выбрать сервер KinoLink. Проверьте Wi‑Fi и адрес сервера.');
 			return;
 		}
@@ -443,7 +461,8 @@
 		// SCRIPT_VERSION позволяет плееру заметить устаревший скрипт.
 		const query = `?movie=${encodeURIComponent(JSON.stringify(data))}&script=${encodeURIComponent(SCRIPT_VERSION)}`;
 		const playerUrl = `${base}${query}`;
-		if (!window.open(playerUrl, '_blank')) window.location.assign(playerUrl);
+		if (playerWindow) playerWindow.location.replace(playerUrl);
+		else if (!window.open(playerUrl, '_blank')) window.location.assign(playerUrl);
 	}
 
 	async function cacheDetails(data) {
