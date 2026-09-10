@@ -19,7 +19,7 @@ BROWSER_UA = 'Mozilla/5.0 (X11; Linux x86_64; rv:154.0) Gecko/20100101 Firefox/1
 PROBE_UA = 'kinolink-probe/1.0'
 
 APP_NAME = 'kinolink'
-APP_VERSION = '0.7.8'
+APP_VERSION = '0.8.0-dev'
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 KP_CACHE_FILE = os.path.join(BASE_DIR, '.kp-info-cache.json')
@@ -69,6 +69,29 @@ def _safe_cover_target(target):
         return bool(addresses) and all(ipaddress.ip_address(item[4][0]).is_global for item in addresses)
     except (OSError, ValueError):
         return False
+
+
+def _lan_addresses():
+    """Return private IPv4 addresses suitable for connecting from the LAN."""
+    addresses = set()
+    try:
+        for item in socket.getaddrinfo(socket.gethostname(), None, socket.AF_INET):
+            address = item[4][0]
+            if ipaddress.ip_address(address).is_private and not ipaddress.ip_address(address).is_loopback:
+                addresses.add(address)
+    except OSError:
+        pass
+
+    # This determines the address selected by the default route without sending data.
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as probe:
+            probe.connect(('192.0.2.1', 80))
+            address = probe.getsockname()[0]
+            if ipaddress.ip_address(address).is_private and not ipaddress.ip_address(address).is_loopback:
+                addresses.add(address)
+    except OSError:
+        pass
+    return sorted(addresses, key=lambda address: tuple(map(int, address.split('.'))))
 
 
 class SafeCoverRedirectHandler(urllib.request.HTTPRedirectHandler):
@@ -365,14 +388,17 @@ def main(argv=None):
                         help='использовать конкретный порт вместо автоматического выбора')
     parser.add_argument('--host', metavar='HOST', default=None,
                         help='адрес интерфейса для прослушивания (по умолчанию 127.0.0.1)')
-    parser.add_argument('--global', dest='global_bind', action='store_true',
-                        help='слушать на всех интерфейсах (0.0.0.0)')
+    parser.add_argument('--lan', '--global', dest='lan_bind', action='store_true',
+                        help='слушать на всех IPv4-интерфейсах для устройств локальной сети')
     args = parser.parse_args(argv)
 
     if args.port is not None and not 0 < args.port < 65536:
         parser.error('port должен быть в диапазоне 1–65535')
 
-    host = '0.0.0.0' if args.global_bind else (args.host or '127.0.0.1')
+    if args.lan_bind and args.host:
+        parser.error('--lan нельзя использовать одновременно с --host')
+
+    host = '0.0.0.0' if args.lan_bind else (args.host or '127.0.0.1')
 
     try:
         running = find_running_instance()
@@ -405,7 +431,10 @@ def main(argv=None):
 
     if bind_host in ('0.0.0.0', '::'):
         print(f'KinoLink server on http://{bind_host}:{port} (локально: http://127.0.0.1:{port})', flush=True)
-        print('Внимание: сервер доступен из локальной сети.', flush=True)
+        addresses = _lan_addresses()
+        for address in addresses:
+            print(f'Сеть: http://{address}:{port}', flush=True)
+        print('Внимание: сервер доступен всем устройствам локальной сети. Не используйте --lan в публичной сети.', flush=True)
     else:
         print(f'KinoLink server on http://{bind_host}:{port}', flush=True)
 

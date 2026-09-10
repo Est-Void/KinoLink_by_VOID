@@ -1,14 +1,14 @@
 // ==UserScript==
 // @name         KinoLink by VOID
 // @namespace    kinolink
-// @version      0.7.8
+// @version      0.8.0-dev
 // @description  light player for kinopoisk
 // @author       V01D4GE
 // @match        *://www.kinopoisk.ru/*
 // @match        *://hd.kinopoisk.ru/*
 // @icon         none
-// @updateURL    https://github.com/Est-Void/KinoLink_by_VOID/raw/main/userscript/kinolink.user.js
-// @downloadURL  https://github.com/Est-Void/KinoLink_by_VOID/raw/main/userscript/kinolink.user.js
+// @updateURL    https://github.com/Est-Void/KinoLink_by_VOID/raw/dev/userscript/kinolink.user.js
+// @downloadURL  https://github.com/Est-Void/KinoLink_by_VOID/raw/dev/userscript/kinolink.user.js
 // @grant        none
 // ==/UserScript==
 
@@ -18,12 +18,16 @@
 	const PLAYER_URL = 'http://127.0.0.1:8080/';
 	// Версия скрипта для проверки актуальности в плеере.
 	// Синхронизируй с @version выше и REQUIRED_SCRIPT_VERSION в player/config.js.
-	const SCRIPT_VERSION = '0.7.8';
+	const SCRIPT_VERSION = '0.8.0-dev';
 	// Автоопределение адреса сервера: если сервер поднялся не на 8080,
 	// клиент сам найдёт его перебором портов через /api/status.
-	const CUSTOM_SERVER_URL = ''; // явный адрес сервера, например 'http://192.168.1.5:8080/'
+	const CUSTOM_SERVER_URL = ''; // адрес одного сервера, например 'http://192.168.1.5:8080/'
+	// Известные серверы в локальной сети. Добавь сюда адрес, выведенный командой
+	// `python3 player/server.py --lan`; доступные адреса проверяются автоматически.
+	const NETWORK_SERVER_URLS = []; // например ['http://192.168.1.5:8080/']
 	const SERVER_DISCOVER_KEY = 'kinolink-server-url';
 	const SERVER_DISCOVER_RANGE = { start: 8080, end: 8129 };
+	const SERVER_PROBE_TIMEOUT = 750;
 
 	const logger = {
 		info: (...args) => console.info('[KinoLink Script]', ...args),
@@ -37,8 +41,8 @@
 	async function probeServer(base) {
 		try {
 			const controller = new AbortController();
-			const timer = setTimeout(() => controller.abort(), 400);
-			const response = await fetch(`${base}api/status`, { signal: controller.signal });
+			const timer = setTimeout(() => controller.abort(), SERVER_PROBE_TIMEOUT);
+			const response = await fetch(new URL('api/status', base), { signal: controller.signal });
 			clearTimeout(timer);
 			if (!response.ok) return false;
 			const data = await response.json();
@@ -48,25 +52,64 @@
 		}
 	}
 
+	function normalizeServerUrl(value) {
+		try {
+			const url = new URL(value);
+			if (url.protocol !== 'http:' && url.protocol !== 'https:') return '';
+			url.pathname = '/';
+			url.search = '';
+			url.hash = '';
+			return url.href;
+		} catch (error) {
+			logger.warn('Invalid KinoLink server URL', value);
+			return '';
+		}
+	}
+
+	async function findAvailableServer(candidates, parallelism = 1) {
+		for (let offset = 0; offset < candidates.length; offset += parallelism) {
+			const batch = candidates.slice(offset, offset + parallelism);
+			const results = await Promise.all(batch.map(async (candidate) => (await probeServer(candidate)) ? candidate : ''));
+			const found = results.find(Boolean);
+			if (found) return found;
+		}
+		return '';
+	}
+
+	function rememberServerUrl(url) {
+		try {
+			localStorage.setItem(SERVER_DISCOVER_KEY, url);
+		} catch (error) {
+			logger.warn('Failed to remember KinoLink server URL', error);
+		}
+	}
+
 	async function discoverPlayerUrl() {
-		if (CUSTOM_SERVER_URL) return CUSTOM_SERVER_URL;
+		const custom = normalizeServerUrl(CUSTOM_SERVER_URL);
+		if (custom) return custom;
 
 		let cached = null;
 		try {
 			cached = localStorage.getItem(SERVER_DISCOVER_KEY);
 		} catch (error) {
 		}
-		if (cached && (await probeServer(cached))) return cached;
+		const knownServers = [cached, ...NETWORK_SERVER_URLS]
+			.map(normalizeServerUrl)
+			.filter((url, index, all) => url && all.indexOf(url) === index);
+		const networkServer = await findAvailableServer(knownServers);
+		if (networkServer) {
+			rememberServerUrl(networkServer);
+			return networkServer;
+		}
 
+		const localCandidates = [];
 		for (let port = SERVER_DISCOVER_RANGE.start; port <= SERVER_DISCOVER_RANGE.end; port++) {
-			const candidate = `http://127.0.0.1:${port}/`;
-			if (await probeServer(candidate)) {
-				try {
-					localStorage.setItem(SERVER_DISCOVER_KEY, candidate);
-				} catch (error) {
-				}
-				return candidate;
-			}
+			localCandidates.push(`http://127.0.0.1:${port}/`);
+		}
+		const localServer = await findAvailableServer(localCandidates, 8);
+		if (localServer) {
+			rememberServerUrl(localServer);
+			return localServer;
 		}
 		return PLAYER_URL;
 	}
@@ -83,7 +126,7 @@
 
 	let observer = null;
 
-	console.info('[KinoLink Script] KinoLink by VOID v0.7.8 started');
+	console.info('[KinoLink Script] KinoLink by VOID v0.8.0-dev started');
 
 	function ensureWatchButton() {
 		const watchLaterWrapper = findWatchLaterWrapper();

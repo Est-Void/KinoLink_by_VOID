@@ -8,9 +8,10 @@ PLAYER_URL="http://127.0.0.1:8080"
 
 DIR="${KINOLINK_DIR:-$HOME/KinoLink_by_VOID}"
 NO_SERVICE="${KINOLINK_NO_SERVICE:-0}"
+LAN="${KINOLINK_LAN:-0}"
 
 usage() {
-	echo "Usage: install.sh [--dir <path>] [--no-service]"
+	echo "Usage: install.sh [--dir <path>] [--no-service] [--lan]"
 	echo "  curl -sSL https://raw.githubusercontent.com/Est-Void/KinoLink_by_VOID/main/install.sh | sh"
 }
 
@@ -23,6 +24,10 @@ while [ $# -gt 0 ]; do
 			;;
 		--no-service)
 			NO_SERVICE=1
+			shift
+			;;
+		--lan)
+			LAN=1
 			shift
 			;;
 		-h|--help)
@@ -71,6 +76,8 @@ install_service() {
 	mkdir -p "$SERVICE_DIR"
 	SERVICE_FILE="$SERVICE_DIR/$SERVICE_NAME"
 	PYBIN="$(command -v python3)"
+	SERVICE_ARGS=""
+	[ "$LAN" = "1" ] && SERVICE_ARGS=" --lan"
 
 	cat > "$SERVICE_FILE" <<EOF
 [Unit]
@@ -81,7 +88,7 @@ Wants=network-online.target
 [Service]
 Type=simple
 WorkingDirectory=$DIR/player
-ExecStart=$PYBIN $DIR/player/server.py
+ExecStart=$PYBIN $DIR/player/server.py$SERVICE_ARGS
 Restart=on-failure
 RestartSec=3
 
@@ -98,7 +105,9 @@ install_service
 
 say ""
 say "[KinoLink] Done."
-say "  1. Start server (if service not enabled):  cd \"$DIR/player\" && python3 server.py"
+MANUAL_ARGS=""
+[ "$LAN" = "1" ] && MANUAL_ARGS=" --lan"
+say "  1. Start server (if service not enabled):  cd \"$DIR/player\" && python3 server.py$MANUAL_ARGS"
 say "  2. Player URL: $PLAYER_URL"
 say "  3. Install userscript in Tampermonkey/Violentmonkey:"
 say "     $RAW_USERSCRIPT"
