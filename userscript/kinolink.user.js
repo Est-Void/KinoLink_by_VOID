@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         KinoLink by VOID
 // @namespace    kinolink
-// @version      0.8.0-dev
+// @version      0.8.1-dev
 // @description  light player for kinopoisk
 // @author       V01D4GE
 // @match        *://www.kinopoisk.ru/*
@@ -18,7 +18,7 @@
 	const PLAYER_URL = 'http://127.0.0.1:8080/';
 	// Версия скрипта для проверки актуальности в плеере.
 	// Синхронизируй с @version выше и REQUIRED_SCRIPT_VERSION в player/config.js.
-	const SCRIPT_VERSION = '0.8.0-dev';
+	const SCRIPT_VERSION = '0.8.1-dev';
 	// Автоопределение адреса сервера: если сервер поднялся не на 8080,
 	// клиент сам найдёт его перебором портов через /api/status.
 	const CUSTOM_SERVER_URL = ''; // адрес одного сервера, например 'http://192.168.1.5:8080/'
@@ -111,7 +111,7 @@
 			rememberServerUrl(localServer);
 			return localServer;
 		}
-		return PLAYER_URL;
+		return '';
 	}
 
 	function resolvePlayerUrl() {
@@ -124,9 +124,19 @@
 		return playerUrlPromise;
 	}
 
+	function askForServerUrl() {
+		const value = window.prompt(
+			'Сервер KinoLink не найден. Введите адрес сервера из команды `python3 player/server.py --lan`:',
+			'',
+		);
+		const url = normalizeServerUrl(value || '');
+		if (url) rememberServerUrl(url);
+		return url;
+	}
+
 	let observer = null;
 
-	console.info('[KinoLink Script] KinoLink by VOID v0.8.0-dev started');
+	console.info('[KinoLink Script] KinoLink by VOID v0.8.1-dev started');
 
 	function ensureWatchButton() {
 		const watchLaterWrapper = findWatchLaterWrapper();
@@ -345,19 +355,29 @@
 		};
 	}
 
-	function openPlayer() {
+	async function openPlayer() {
 		const data = extractMovieData();
 		if (!data) return logger.error('Failed to extract movie data');
 
 		logger.info('Opening player for movie', data);
+		// Открываем окно синхронно с кликом, иначе браузер может принять его за popup
+		// после ожидания поиска сервера.
+		const playerWindow = window.open('', '_blank');
 		if (data.kinopoisk) cacheDetails(data);
 
-		const base = resolvedPlayerUrl || PLAYER_URL;
+		const base = (await resolvePlayerUrl()) || askForServerUrl();
+		if (!base) {
+			playerWindow?.close();
+			window.alert('Не удалось выбрать сервер KinoLink. Проверьте Wi‑Fi и адрес сервера.');
+			return;
+		}
 		// Передаём данные целиком: плеер сразу получает title/cover без
 		// ожидания фонового POST (см. cacheDetails) и гонок с кэшем.
 		// SCRIPT_VERSION позволяет плееру заметить устаревший скрипт.
 		const query = `?movie=${encodeURIComponent(JSON.stringify(data))}&script=${encodeURIComponent(SCRIPT_VERSION)}`;
-		window.open(`${base}${query}`, '_blank');
+		const playerUrl = `${base}${query}`;
+		if (playerWindow) playerWindow.location.replace(playerUrl);
+		else window.open(playerUrl, '_blank');
 	}
 
 	async function cacheDetails(data) {
