@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         KinoLink by VOID
 // @namespace    kinolink
-// @version      0.8.3-dev
+// @version      0.8.4-dev
 // @description  light player for kinopoisk
 // @author       V01D4GE
 // @match        *://www.kinopoisk.ru/*
@@ -9,7 +9,8 @@
 // @icon         none
 // @updateURL    https://github.com/Est-Void/KinoLink_by_VOID/raw/dev/userscript/kinolink.user.js
 // @downloadURL  https://github.com/Est-Void/KinoLink_by_VOID/raw/dev/userscript/kinolink.user.js
-// @grant        none
+// @grant        GM_xmlhttpRequest
+// @connect      *
 // ==/UserScript==
 
 (function () {
@@ -18,7 +19,7 @@
 	const PLAYER_URL = 'http://127.0.0.1:8080/';
 	// Версия скрипта для проверки актуальности в плеере.
 	// Синхронизируй с @version выше и REQUIRED_SCRIPT_VERSION в player/config.js.
-	const SCRIPT_VERSION = '0.8.3-dev';
+	const SCRIPT_VERSION = '0.8.4-dev';
 	// Автоопределение адреса сервера: если сервер поднялся не на 8080,
 	// клиент сам найдёт его перебором портов через /api/status.
 	const CUSTOM_SERVER_URL = ''; // адрес одного сервера, например 'http://192.168.1.5:8080/'
@@ -38,15 +39,42 @@
 	let playerUrlPromise = null;
 	let resolvedPlayerUrl = null;
 
+	async function requestServerJson(url, { method = 'GET', headers = {}, body = null, timeout = SERVER_PROBE_TIMEOUT } = {}) {
+		if (typeof GM_xmlhttpRequest === 'function') {
+			return new Promise((resolve, reject) => {
+				GM_xmlhttpRequest({
+					method,
+					url: String(url),
+					headers,
+					data: body,
+					timeout,
+					onload: (response) => {
+						try {
+							resolve({ ok: response.status >= 200 && response.status < 300, data: JSON.parse(response.responseText || '{}') });
+						} catch (error) {
+							reject(error);
+						}
+					},
+					onerror: reject,
+					ontimeout: () => reject(new Error('KinoLink server request timed out')),
+				});
+			});
+		}
+
+		const controller = new AbortController();
+		const timer = setTimeout(() => controller.abort(), timeout);
+		try {
+			const response = await fetch(url, { method, headers, body, signal: controller.signal });
+			return { ok: response.ok, data: await response.json() };
+		} finally {
+			clearTimeout(timer);
+		}
+	}
+
 	async function probeServer(base) {
 		try {
-			const controller = new AbortController();
-			const timer = setTimeout(() => controller.abort(), SERVER_PROBE_TIMEOUT);
-			const response = await fetch(new URL('api/status', base), { signal: controller.signal });
-			clearTimeout(timer);
-			if (!response.ok) return false;
-			const data = await response.json();
-			return Boolean(data && data.app === 'kinolink');
+			const response = await requestServerJson(new URL('api/status', base));
+			return Boolean(response.ok && response.data?.app === 'kinolink');
 		} catch (error) {
 			return false;
 		}
@@ -152,7 +180,7 @@
 
 	let observer = null;
 
-	console.info('[KinoLink Script] KinoLink by VOID v0.8.3-dev started');
+	console.info('[KinoLink Script] KinoLink by VOID v0.8.4-dev started');
 
 	function ensureWatchButton() {
 		const watchLaterWrapper = findWatchLaterWrapper();
@@ -407,7 +435,7 @@
 
 	async function cacheDetails(data) {
 		if (!data?.kinopoisk || !data?.title) return false;
-		if (typeof fetch !== 'function') return false;
+		if (typeof fetch !== 'function' && typeof GM_xmlhttpRequest !== 'function') return false;
 		try {
 			const base = await resolvePlayerUrl();
 			const payload = {
@@ -428,7 +456,7 @@
 			};
 			for (let attempt = 0; attempt < 3; attempt++) {
 				try {
-					const response = await fetch(`${base}api/kp-info?id=${encodeURIComponent(data.kinopoisk)}`, {
+					const response = await requestServerJson(`${base}api/kp-info?id=${encodeURIComponent(data.kinopoisk)}`, {
 						method: 'POST',
 						headers: { 'Content-Type': 'application/json' },
 						body: JSON.stringify(payload),
