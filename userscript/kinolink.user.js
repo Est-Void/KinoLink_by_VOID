@@ -18,7 +18,6 @@
 (function () {
 	'use strict';
 
-	const PLAYER_URL = 'http://127.0.0.1:8080/';
 	// Версия скрипта для проверки актуальности в плеере.
 	// Синхронизируй с @version выше и REQUIRED_SCRIPT_VERSION в player/config.js.
 	const SCRIPT_VERSION = '0.8.7-dev';
@@ -138,24 +137,15 @@
 		try {
 			if (typeof GM_getValue === 'function') {
 				const stored = GM_getValue(SERVER_DISCOVER_KEY, '');
-				if (typeof stored === 'string' && stored !== LOCAL_SERVER_SENTINEL) return normalizeServerUrl(stored);
+				if (typeof stored === 'string' && stored) {
+					return stored === LOCAL_SERVER_SENTINEL ? '' : normalizeServerUrl(stored);
+				}
 			}
-			return normalizeServerUrl(localStorage.getItem(SERVER_DISCOVER_KEY) || '');
+			const local = localStorage.getItem(SERVER_DISCOVER_KEY) || '';
+			return local === LOCAL_SERVER_SENTINEL ? '' : normalizeServerUrl(local);
 		} catch (error) {
 			return '';
 		}
-	}
-
-	function isLoopbackUrl(url) {
-		try {
-			return ['127.0.0.1', 'localhost', '[::1]'].includes(new URL(url).hostname);
-		} catch (error) {
-			return false;
-		}
-	}
-
-	function isMobileBrowser() {
-		return Boolean(navigator.userAgentData?.mobile) || /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
 	}
 
 	async function discoverPlayerUrl() {
@@ -434,22 +424,17 @@
 		const custom = normalizeServerUrl(CUSTOM_SERVER_URL);
 		const stored = getStoredServerUrl();
 		const localPreferred = hasLocalServerPreference();
-		let base = custom || (localPreferred || isLoopbackUrl(stored) ? '' : stored);
-		let playerWindow = null;
+		// Сохранённый localhost тоже является полноценным адресом: не заставляем
+		// пользователя вводить его повторно после каждой навигации.
+		let base = custom || stored;
 		// Выполняется прямо в обработчике клика, поэтому работает и в мобильных
 		// браузерах, запрещающих диалог после асинхронного поиска.
 		if (!base && !localPreferred) base = askForServerUrl();
 		if (!base) {
-			playerWindow = window.open('', '_blank');
-			if (playerWindow) {
-				playerWindow.document.title = 'KinoLink';
-				playerWindow.document.body.textContent = 'Подключение к серверу KinoLink…';
-			}
 			base = await resolvePlayerUrl();
 		}
 		if (!base && localPreferred) base = askForServerUrl();
 		if (!base) {
-			playerWindow?.close();
 			window.alert('Не удалось выбрать сервер KinoLink. Проверьте Wi‑Fi и адрес сервера.');
 			return;
 		}
@@ -461,8 +446,7 @@
 		// SCRIPT_VERSION позволяет плееру заметить устаревший скрипт.
 		const query = `?movie=${encodeURIComponent(JSON.stringify(data))}&script=${encodeURIComponent(SCRIPT_VERSION)}`;
 		const playerUrl = `${base}${query}`;
-		if (playerWindow) playerWindow.location.replace(playerUrl);
-		else if (!window.open(playerUrl, '_blank')) window.location.assign(playerUrl);
+		if (!window.open(playerUrl, '_blank')) window.location.assign(playerUrl);
 	}
 
 	async function cacheDetails(data) {

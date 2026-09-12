@@ -28,6 +28,20 @@ function setSearchParam(key, value) {
 	}
 }
 
-function parseVersion(version) {
-	return parseInt(String(version).replace(/\D/g, ''), 10);
+function parseVersionParts(version) {
+	return String(version)
+		.split('-')[0]
+		.split('.')
+		.map((part) => parseInt(part, 10) || 0);
+}
+
+function compareVersions(a, b) {
+	const left = parseVersionParts(a);
+	const right = parseVersionParts(b);
+	const length = Math.max(left.length, right.length);
+	for (let i = 0; i < length; i++) {
+		const diff = (left[i] || 0) - (right[i] || 0);
+		if (diff !== 0) return diff < 0 ? -1 : 1;
+	}
+	return 0;
 }

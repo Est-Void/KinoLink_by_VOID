@@ -237,9 +237,7 @@ async function resolveImdbId(movieData) {
 	const cached = getCachedImdb(movieData);
 	if (cached) return cached;
 
-	const resolvers = [];
-	if (TMDB_API_KEY) resolvers.push(resolveImdbFromTmdb.bind(null, movieData));
-	resolvers.push(resolveImdbFromWikidata.bind(null, movieData));
+	const resolvers = [resolveImdbFromWikidata.bind(null, movieData)];
 
 	let lastError = null;
 	for (const resolver of resolvers) {
@@ -260,45 +258,6 @@ async function resolveImdbId(movieData) {
 		throw lastError;
 	}
 	throw new Error('NOT_FOUND');
-}
-
-async function resolveImdbFromTmdb(movieData) {
-	const isSeries = movieData?.type === 'series';
-	const collection = isSeries ? 'tv' : 'movie';
-
-	if (movieData.tmdb) {
-		try {
-			const idUrl = new URL(`${TMDB_API_BASE}/${collection}/${movieData.tmdb}/external_ids`);
-			idUrl.searchParams.set('api_key', TMDB_API_KEY);
-			const external = await fetchJson(idUrl);
-			if (external?.imdb_id) return external.imdb_id;
-		} catch (error) {
-			logger.warn('TMDB external_ids lookup failed, falling back to search', error);
-		}
-	}
-
-	const searchUrl = new URL(`${TMDB_API_BASE}/search/${collection}`);
-	searchUrl.searchParams.set('api_key', TMDB_API_KEY);
-	searchUrl.searchParams.set('language', TMDB_LANGUAGE);
-	searchUrl.searchParams.set('query', movieData.title);
-	if (movieData.year) {
-		searchUrl.searchParams.set(isSeries ? 'first_air_date_year' : 'year', movieData.year);
-	}
-
-	const searchData = await fetchJson(searchUrl);
-	const results = (searchData?.results || []).filter((item) => item?.id);
-	if (results.length === 0) return '';
-
-	const matched =
-		(movieData.year &&
-			results.find((item) => String(item.release_date || item.first_air_date || '').slice(0, 4) === movieData.year)) ||
-		results[0];
-
-	const externalUrl = new URL(`${TMDB_API_BASE}/${collection}/${matched.id}/external_ids`);
-	externalUrl.searchParams.set('api_key', TMDB_API_KEY);
-	const external = await fetchJson(externalUrl);
-
-	return external?.imdb_id || '';
 }
 
 async function resolveImdbFromWikidata(movieData) {
@@ -702,7 +661,7 @@ function checkVersion(scriptVersion) {
 	if (typeof scriptVersion !== 'string' || !scriptVersion) return;
 	if (scriptVersion === REQUIRED_SCRIPT_VERSION) return;
 	try {
-		if (parseVersion(scriptVersion) < parseVersion(REQUIRED_SCRIPT_VERSION)) {
+		if (compareVersions(scriptVersion, REQUIRED_SCRIPT_VERSION) < 0) {
 			showUpdateToast(scriptVersion);
 			logger.warn(`Requires script version ${REQUIRED_SCRIPT_VERSION} but the installed one is ${scriptVersion}`);
 		}

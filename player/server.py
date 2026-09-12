@@ -29,6 +29,7 @@ MAX_COVER_SIZE = 8 * 1024 * 1024
 MAX_MOVIE_ID_LENGTH = 20
 KP_CACHE_LOCK = threading.Lock()
 ALLOWED_CORS_ORIGINS = {'https://www.kinopoisk.ru', 'https://hd.kinopoisk.ru'}
+NO_PROXY_OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}))
 
 
 def _load_kp_cache():
@@ -64,8 +65,9 @@ def _safe_cover_target(target):
     parsed = urllib.parse.urlparse(target)
     if parsed.scheme.lower() not in ('http', 'https') or not parsed.hostname:
         return False
+    default_port = 443 if parsed.scheme.lower() == 'https' else 80
     try:
-        addresses = socket.getaddrinfo(parsed.hostname, parsed.port or 443, type=socket.SOCK_STREAM)
+        addresses = socket.getaddrinfo(parsed.hostname, parsed.port or default_port, type=socket.SOCK_STREAM)
         return bool(addresses) and all(ipaddress.ip_address(item[4][0]).is_global for item in addresses)
     except (OSError, ValueError):
         return False
@@ -107,7 +109,7 @@ def _probe_port(port, host='127.0.0.1', timeout=PROBE_TIMEOUT):
             f'http://{host}:{port}{path}',
             headers={'User-Agent': PROBE_UA, 'Accept': '*/*'},
         )
-        with urllib.request.urlopen(request, timeout=timeout) as response:
+        with NO_PROXY_OPENER.open(request, timeout=timeout) as response:
             return response.read()
 
     try:
@@ -227,9 +229,12 @@ def bind_server(host, forced_port):
 
 
 class Handler(SimpleHTTPRequestHandler):
+    def _route_path(self):
+        return urllib.parse.urlparse(self.path).path
+
     def send_response(self, code, message=None):
         super().send_response(code, message)
-        if not self.path.startswith('/cover'):
+        if self._route_path() != '/cover':
             self.send_header('Cache-Control', 'no-store, max-age=0')
 
     def _cors_headers(self):
@@ -247,13 +252,14 @@ class Handler(SimpleHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self):
-        if self.path.startswith('/api/status'):
+        route = self._route_path()
+        if route == '/api/status':
             self._api_status()
             return
-        if self.path.startswith('/api/kp-info'):
+        if route == '/api/kp-info':
             self._kp_info_get()
             return
-        if self.path.startswith('/cover'):
+        if route == '/cover':
             self._cover_proxy()
             return
         super().do_GET()
@@ -276,7 +282,7 @@ class Handler(SimpleHTTPRequestHandler):
         self.wfile.write(body)
 
     def do_POST(self):
-        if self.path.startswith('/api/kp-info'):
+        if self._route_path() == '/api/kp-info':
             self._kp_info_post()
             return
         self.send_response(404)
@@ -329,6 +335,7 @@ class Handler(SimpleHTTPRequestHandler):
 
         with KP_CACHE_LOCK:
             data = _load_kp_cache()
+            data.pop(movie_id, None)
             data[movie_id] = payload
             if os.path.exists(KP_CACHE_FILE) and os.path.getsize(KP_CACHE_FILE) > MAX_CACHE_SIZE:
                 data = dict(list(data.items())[-500:])

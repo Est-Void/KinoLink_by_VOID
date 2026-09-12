@@ -3,10 +3,6 @@ const KINOBOX_API_ENDPOINTS = [
 	'https://api.kinobox.tv',
 ];
 
-const TMDB_API_KEY = '';
-const TMDB_API_BASE = 'https://api.themoviedb.org/3';
-const TMDB_LANGUAGE = 'ru-RU';
-
 // Минимальная версия юзерскрипта, с которой корректно работает плеер.
 // Синхронизируй с @version в userscript/kinolink.user.js при релизе.
 const REQUIRED_SCRIPT_VERSION = '0.8.7-dev';
