@@ -235,14 +235,20 @@
 		return PLAYER_URL;
 	}
 	function openPlayer(raw) {
-		const movie = parseMovieRef(raw);
-		if (!movie) {
-			logger.error("refused to open player: invalid movie ref", raw);
+		let url;
+		try {
+			url = buildPlayerUrl(playerBase(), raw, VERSION);
+		} catch (error) {
+			logger.error("refused to open player: invalid movie ref", raw, error);
 			return;
 		}
-		const url = playerBase() + buildPlayerQuery(movie, VERSION).slice(1);
 		logger.info("opening player", url);
 		if (!window.open(url, "_blank")) window.location.assign(url);
+	}
+	function buildPlayerUrl(base, raw, scriptVersion) {
+		const movie = parseMovieRef(raw);
+		if (!movie) throw new Error("invalid MovieRef");
+		return (base.endsWith("/") ? base : `${base}/`) + buildPlayerQuery(movie, scriptVersion);
 	}
 	var observer = null;
 	var latest = null;

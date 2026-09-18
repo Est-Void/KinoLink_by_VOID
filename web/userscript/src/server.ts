@@ -6,10 +6,10 @@
 // of the movie sites:
 //   localStorage.setItem('kinolink-player-url', 'http://127.0.0.1:8080/')
 
-import { buildPlayerQuery, parseMovieRef } from '../../shared/movie';
-import { VERSION } from '../../shared/version';
-import type { RawRef } from './sites';
-import { logger } from './log';
+import { buildPlayerQuery, parseMovieRef } from '../../shared/movie.ts';
+import { VERSION } from '../../shared/version.ts';
+import type { RawRef } from './sites.ts';
+import { logger } from './log.ts';
 
 // TODO: production player URL (docker hosting). Must end with a slash.
 const PLAYER_URL = 'https://example.com/';
@@ -24,14 +24,23 @@ function playerBase(): string {
 }
 
 export function openPlayer(raw: RawRef): void {
-  const movie = parseMovieRef(raw);
-  if (!movie) {
-    logger.error('refused to open player: invalid movie ref', raw);
+  let url: string;
+  try {
+    url = buildPlayerUrl(playerBase(), raw, VERSION);
+  } catch (error) {
+    logger.error('refused to open player: invalid movie ref', raw, error);
     return;
   }
   // Synchronous window.open inside the click handler keeps the user gesture
   // (mobile popup blockers stay happy).
-  const url = playerBase() + buildPlayerQuery(movie, VERSION).slice(1);
   logger.info('opening player', url);
   if (!window.open(url, '_blank')) window.location.assign(url);
+}
+
+/** Join base URL with the player query. Throws on invalid ref. */
+export function buildPlayerUrl(base: string, raw: RawRef, scriptVersion: string): string {
+  const movie = parseMovieRef(raw);
+  if (!movie) throw new Error('invalid MovieRef');
+  const normalized = base.endsWith('/') ? base : `${base}/`;
+  return normalized + buildPlayerQuery(movie, scriptVersion);
 }

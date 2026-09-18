@@ -2,8 +2,8 @@
 // button is always reachable even when the site markup changes.
 // Styling is intentionally bare — decoration comes later.
 
-import type { Site } from './sites';
-import { logger } from './log';
+import type { Site } from './sites.ts';
+import { logger } from './log.ts';
 
 export const BUTTON_ID = 'kinolink-watch-button';
 

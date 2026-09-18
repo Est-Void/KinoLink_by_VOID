@@ -1,8 +1,8 @@
 // Minimal v2 player (oled theme): title in the header, centered 16:9 window,
 // sources below, version line top-right. No history, no extra themes yet.
 
-import { parsePlayerQuery } from '../../shared/movie';
-import { VERSION, isOutdated } from '../../shared/version';
+import { parsePlayerQuery } from '../../shared/movie.ts';
+import { VERSION, isOutdated } from '../../shared/version.ts';
 
 const SCRIPT_UPDATE_URL =
   'https://github.com/Est-Void/KinoLink_by_VOID/raw/refs/heads/rewrite/v2/web/userscript/dist/kinolink.user.js';

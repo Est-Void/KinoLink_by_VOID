@@ -1,9 +1,9 @@
-import { VERSION } from '../../shared/version';
-import { detectSite, extractors } from './sites';
-import type { RawRef } from './sites';
-import { ensureButton } from './button';
-import { openPlayer } from './server';
-import { logger } from './log';
+import { VERSION } from '../../shared/version.ts';
+import { detectSite, extractors } from './sites.ts';
+import type { RawRef } from './sites.ts';
+import { ensureButton } from './button.ts';
+import { openPlayer } from './server.ts';
+import { logger } from './log.ts';
 
 let observer: MutationObserver | null = null;
 // Latest successfully extracted ref. The click handler reads it lazily so
