@@ -37,13 +37,13 @@
 	--color-bg: #0c0714;
 	--color-surface: #100a1a;
 	--color-surface-hover: #171029;
-	--color-border: rgba(122, 47, 208, 0.14);
-	--color-hover: rgba(122, 47, 208, 0.08);
-	--color-ring: rgba(122, 47, 208, 0.55);
+	--color-border: rgba(110, 75, 170, 0.1);
+	--color-hover: rgba(110, 75, 170, 0.06);
+	--color-ring: rgba(110, 75, 170, 0.45);
 	--body-bg: #0c0714;
 	--body-image: none;
-	--lava-1: rgba(122, 47, 208, 0.28);
-	--lava-2: rgba(43, 10, 69, 0.35);
+	--lava-1: rgba(110, 75, 170, 0.22);
+	--lava-2: rgba(50, 35, 75, 0.28);
 }
 
 /* Titan: dark with orange accents. */

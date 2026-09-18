@@ -17,7 +17,7 @@ const THEME_KEY = 'kinolink-theme';
 
 const THEMES = {
   oled: { label: 'Pure OLED', dot: '#000000' },
-  estvoid: { label: 'est-Void', dot: '#7a2fd0' },
+  estvoid: { label: 'est-Void', dot: '#6b4fa1' },
   titan: { label: 'Титан', dot: '#e07a00' },
 } as const;
 
