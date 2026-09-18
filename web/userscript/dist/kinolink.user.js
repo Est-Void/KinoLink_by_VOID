@@ -239,40 +239,39 @@
 			"align-items:center",
 			"gap:8px",
 			"margin:12px 0",
-			"padding:10px 18px",
+			"padding:10px 20px",
 			"font-size:15px",
 			"font-weight:700",
 			"color:#000",
 			"background:#f5c518",
 			"border:none",
-			"border-radius:4px",
+			"border-radius:999px",
 			"cursor:pointer"
 		].join(";");
 		btn.innerHTML = "<svg width=\"18\" height=\"18\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M6 3.375 21 12 6 20.625V3.375Z\" fill=\"#000000\"/></svg>";
 		btn.appendChild(document.createTextNode("Смотреть"));
 		hero.after(btn);
 	}
-	function attachTmdbButton(list) {
+	function attachTmdbButton(after) {
 		const btn = makeButton();
 		btn.style.cssText = [
 			"display:inline-flex",
 			"align-items:center",
-			"gap:6px",
+			"gap:8px",
+			"margin-left:12px",
+			"padding:10px 20px",
+			"font-size:15px",
+			"font-weight:700",
 			"color:#fff",
-			"background:transparent",
-			"border:none",
-			"font-size:1em",
-			"font-weight:600",
+			"background:#1c2c44",
+			"border:1px solid rgba(255,255,255,0.1)",
+			"border-radius:999px",
 			"cursor:pointer",
-			"padding:4px 2px"
+			"white-space:nowrap"
 		].join(";");
 		btn.innerHTML = PLAY_SVG_16;
 		btn.appendChild(document.createTextNode("Смотреть"));
-		const item = document.createElement("li");
-		item.style.display = "inline-flex";
-		item.style.alignItems = "center";
-		item.appendChild(btn);
-		list.appendChild(item);
+		after.after(btn);
 	}
 	function attachLetterboxdButton(details) {
 		const btn = makeButton();
@@ -289,7 +288,7 @@
 			"color:#fff",
 			"background:#00c030",
 			"border:none",
-			"border-radius:4px",
+			"border-radius:999px",
 			"cursor:pointer"
 		].join(";");
 		btn.innerHTML = PLAY_SVG_16;
@@ -374,6 +373,12 @@
 			}
 		}
 		if (site === "tmdb") {
+			const vibe = document.querySelector("#vibes_label");
+			if (vibe) {
+				attachTmdbButton(vibe);
+				logger.info("anchor: tmdb-vibe");
+				return;
+			}
 			const actions = document.querySelector("ul.auto.actions");
 			if (actions) {
 				attachTmdbButton(actions);

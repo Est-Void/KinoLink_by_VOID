@@ -95,7 +95,7 @@ function attachMainStyleButton(ref: HTMLButtonElement): void {
   ref.before(wrapper);
 }
 
-// IMDb: жёлтая кнопка в духе сайта после hero-блока.
+// IMDb: жёлтая пилюля в духе родной Watchlist-кнопки.
 function attachImdbButton(hero: Element): void {
   const btn = makeButton();
   btn.style.cssText = [
@@ -103,13 +103,13 @@ function attachImdbButton(hero: Element): void {
     'align-items:center',
     'gap:8px',
     'margin:12px 0',
-    'padding:10px 18px',
+    'padding:10px 20px',
     'font-size:15px',
     'font-weight:700',
     'color:#000',
     'background:#f5c518',
     'border:none',
-    'border-radius:4px',
+    'border-radius:999px',
     'cursor:pointer',
   ].join(';');
   btn.innerHTML =
@@ -118,28 +118,27 @@ function attachImdbButton(hero: Element): void {
   hero.after(btn);
 }
 
-// TMDB: пунктом в родной ряд ul.auto.actions, как ссылка на трейлер.
-function attachTmdbButton(list: Element): void {
+// TMDB: пилюля как «What's your Vibe?» рядом с ней.
+function attachTmdbButton(after: Element): void {
   const btn = makeButton();
   btn.style.cssText = [
     'display:inline-flex',
     'align-items:center',
-    'gap:6px',
+    'gap:8px',
+    'margin-left:12px',
+    'padding:10px 20px',
+    'font-size:15px',
+    'font-weight:700',
     'color:#fff',
-    'background:transparent',
-    'border:none',
-    'font-size:1em',
-    'font-weight:600',
+    'background:#1c2c44',
+    'border:1px solid rgba(255,255,255,0.1)',
+    'border-radius:999px',
     'cursor:pointer',
-    'padding:4px 2px',
+    'white-space:nowrap',
   ].join(';');
   btn.innerHTML = PLAY_SVG_16;
   btn.appendChild(document.createTextNode('Смотреть'));
-  const item = document.createElement('li');
-  item.style.display = 'inline-flex';
-  item.style.alignItems = 'center';
-  item.appendChild(btn);
-  list.appendChild(item);
+  after.after(btn);
 }
 
 // Letterboxd: широкая фирменная зелёная кнопка после блока названия.
@@ -158,7 +157,7 @@ function attachLetterboxdButton(details: Element): void {
     'color:#fff',
     'background:#00c030',
     'border:none',
-    'border-radius:4px',
+    'border-radius:999px',
     'cursor:pointer',
   ].join(';');
   btn.innerHTML = PLAY_SVG_16;
@@ -251,7 +250,13 @@ export function ensureButton(site: Site, onClick: () => void): void {
   }
 
   if (site === 'tmdb') {
-    // Проверенный якорь из живой верстки: родной ряд действий.
+    // Рядом с «What's your Vibe?»; фолбэк — родной ряд действий.
+    const vibe = document.querySelector('#vibes_label');
+    if (vibe) {
+      attachTmdbButton(vibe);
+      logger.info('anchor: tmdb-vibe');
+      return;
+    }
     const actions = document.querySelector('ul.auto.actions');
     if (actions) {
       attachTmdbButton(actions);

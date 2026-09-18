@@ -345,14 +345,17 @@ async function init(): Promise<void> {
   document.title = `${movie.title} | KinoLink`;
   el('title').textContent = movie.title;
 
-  const id = movie.kinopoisk
-    ? `kinopoisk=${encodeURIComponent(movie.kinopoisk)}`
-    : movie.imdb
-      ? `imdb=${encodeURIComponent(movie.imdb)}`
-      : `tmdb=${encodeURIComponent(movie.tmdb ?? '')}`;
+  const params = new URLSearchParams();
+  params.set(
+    movie.kinopoisk ? 'kinopoisk' : movie.imdb ? 'imdb' : 'tmdb',
+    movie.kinopoisk ?? movie.imdb ?? movie.tmdb ?? '',
+  );
+  // Hints the server which Wikidata property to try first (TMDB ids collide
+  // across movies and series).
+  if (!movie.kinopoisk && !movie.imdb && movie.type) params.set('type', movie.type);
   let sources: Source[];
   try {
-    const res = await fetch(`/api/players?${id}`);
+    const res = await fetch(`/api/players?${params.toString()}`);
     if (!res.ok) throw new Error(`status ${res.status}`);
     const body = (await res.json()) as { data?: Source[] };
     sources = (body.data ?? []).filter((s) => s?.type && s?.iframeUrl);

@@ -126,7 +126,19 @@ func playersHandler(w http.ResponseWriter, r *http.Request, cfg config) {
 		return
 	}
 
+	// The Kinobox mirrors only understand kinopoisk/imdb. Resolve TMDB ids
+	// to IMDb via Wikidata so TMDB-sourced opens keep working.
 	client := &http.Client{Timeout: proxyTimeout}
+	if kind == "tmdb" {
+		seriesFirst := strings.TrimSpace(q.Get("type")) == "series"
+		if imdb, err := resolveImdbFromTmdb(r.Context(), client, wikidataSparqlEndpoint, id, seriesFirst); err == nil {
+			log.Printf("kinolink: resolved tmdb %s -> %s", id, imdb)
+			id, kind = imdb, "imdb"
+		} else {
+			log.Printf("kinolink: tmdb resolve failed for %s: %v", id, err)
+		}
+	}
+
 	var (
 		sources   []playerSource
 		tried     int
@@ -228,13 +240,37 @@ func fetchUpstream(ctx context.Context, client *http.Client, endpoint, kind, id 
 }
 
 // pickID returns the first usable external ID, preferring kinopoisk.
+// Shapes are validated so they are safe to forward upstream or embed in SPARQL.
 func pickID(q url.Values) (id, kind string) {
-	for _, k := range []string{"kinopoisk", "imdb", "tmdb"} {
-		if v := strings.TrimSpace(q.Get(k)); v != "" && len(v) <= 32 {
-			return v, k
-		}
+	if v := strings.TrimSpace(q.Get("kinopoisk")); validDigits(v) {
+		return v, "kinopoisk"
+	}
+	if v := strings.TrimSpace(q.Get("imdb")); validImdb(v) {
+		return v, "imdb"
+	}
+	if v := strings.TrimSpace(q.Get("tmdb")); validDigits(v) {
+		return v, "tmdb"
 	}
 	return "", ""
+}
+
+func validDigits(v string) bool {
+	if v == "" || len(v) > 20 {
+		return false
+	}
+	for _, c := range v {
+		if c < '0' || c > '9' {
+			return false
+		}
+	}
+	return true
+}
+
+func validImdb(v string) bool {
+	if len(v) < 3 || len(v) > 22 || !strings.HasPrefix(v, "tt") {
+		return false
+	}
+	return validDigits(v[2:])
 }
 
 func isSafeHTTPURL(raw string) bool {
