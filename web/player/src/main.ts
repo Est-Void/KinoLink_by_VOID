@@ -5,7 +5,7 @@ import { parsePlayerQuery } from '../../shared/movie';
 import { VERSION, isOutdated } from '../../shared/version';
 
 const SCRIPT_UPDATE_URL =
-  'https://github.com/Est-Void/KinoLink_by_VOID/blob/rewrite/v2/web/userscript';
+  'https://github.com/Est-Void/KinoLink_by_VOID/raw/refs/heads/rewrite/v2/web/userscript/dist/kinolink.user.js';
 
 interface Source {
   type: string;
