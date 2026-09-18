@@ -39,7 +39,7 @@ make build       # собирает сервер ./kinolink
 
 Поставьте [Tampermonkey](https://www.tampermonkey.net/) (или Violentmonkey / Greasemonkey) и установите скрипт:
 
-[`web/userscript/dist/kinolink.user.js`](https://github.com/Est-Void/KinoLink_by_VOID/raw/refs/heads/main/web/userscript/dist/kinolink.user.js)
+Нажмите для установки скрипта -> [`web/userscript/dist/kinolink.user.js`](https://github.com/Est-Void/KinoLink_by_VOID/raw/refs/heads/main/web/userscript/dist/kinolink.user.js) 
 
 Скрипт обновляется автоматически и по умолчанию открывает плеер на `http://127.0.0.1:8080/`.
 
@@ -98,7 +98,7 @@ npm run build --workspaces                                       # сборка 
 - [ ] Синхронизация списка просмотренного между устройствами
 - [ ] Нормальная мобильная вёрстка плеера
 - [ ] Хостинг плеера, чтобы не поднимать сервер локально
-- [ ] Больше источников и автоматический выбор лучшего качества
+- [x] Больше источников и автоматический выбор лучшего качества
 
 Есть идеи или хочешь помочь — открывай issue или присылай PR.
 
