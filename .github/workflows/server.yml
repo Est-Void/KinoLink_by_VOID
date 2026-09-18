@@ -1,0 +1,25 @@
+name: server
+
+on:
+  push:
+    branches: [main, dev, rewrite/v2]
+    paths: [server/**, Dockerfile, Makefile]
+  pull_request:
+    paths: [server/**, Dockerfile, Makefile]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+      - run: gofmt -l .
+        working-directory: server
+      - run: go vet ./...
+        working-directory: server
+      - run: go test ./...
+        working-directory: server
+      - run: CGO_ENABLED=0 go build -o /tmp/kinolink .
+        working-directory: server

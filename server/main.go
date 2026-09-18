@@ -67,7 +67,7 @@ func run() error {
 	}
 
 	srv := &http.Server{
-		Handler:      routes(cfg, port),
+		Handler:      routes(cfg, host, port),
 		ReadTimeout:  15 * time.Second,
 		WriteTimeout: 30 * time.Second,
 		IdleTimeout:  60 * time.Second,

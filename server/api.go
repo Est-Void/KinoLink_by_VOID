@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -31,14 +30,13 @@ type playersResponse struct {
 	Data []playerSource `json:"data"`
 }
 
-func routes(cfg config, port int) http.Handler {
+func routes(cfg config, host string, port int) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/status", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
 			http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
 			return
 		}
-		host, _, _ := net.SplitHostPort(r.Context().Value(http.LocalAddrContextKey).(net.Addr).String())
 		writeJSON(w, http.StatusOK, statusResponse{
 			App:     appName,
 			Version: appVersion,

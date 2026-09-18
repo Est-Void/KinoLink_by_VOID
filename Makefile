@@ -1,4 +1,4 @@
-.PHONY: dev build vet run docker-build
+.PHONY: dev build vet run test docker-build
 
 dev:
 	cd server && go run .
@@ -8,6 +8,9 @@ run:
 
 vet:
 	cd server && go vet ./...
+
+test:
+	cd server && go test ./...
 
 build:
 	cd server && CGO_ENABLED=0 go build -o ../kinolink .
