@@ -3,6 +3,7 @@
 
 import { buildPlayerQuery, parseMovieRef, parsePlayerQuery } from '../../shared/movie.ts';
 import type { MovieRef } from '../../shared/movie.ts';
+import { coverSrc } from '../../shared/cover.ts';
 import { VERSION, isOutdated } from '../../shared/version.ts';
 
 const SCRIPT_UPDATE_URL =
@@ -96,12 +97,13 @@ function renderWatchedMovies(): void {
     coverBtn.className = 'cover-btn';
     coverBtn.title = 'Открыть';
     coverBtn.setAttribute('aria-label', `Открыть ${movie.title}`);
-    if (movie.cover) {
+    const cover = movie.cover ? coverSrc(movie.cover, location.origin) : '';
+    if (cover) {
       const img = document.createElement('img');
       img.className = 'cover';
       img.alt = '';
       img.loading = 'lazy';
-      img.src = movie.cover;
+      img.src = cover;
       img.addEventListener('error', () => {
         coverBtn.classList.add('no-cover');
         img.remove();

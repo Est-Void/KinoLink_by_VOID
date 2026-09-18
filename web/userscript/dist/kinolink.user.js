@@ -33,27 +33,69 @@
 	function ogTitle() {
 		return document.querySelector("meta[property=\"og:title\"]")?.getAttribute("content")?.trim() ?? "";
 	}
-	function ogImage() {
-		return document.querySelector("meta[property=\"og:image:secure_url\"]")?.getAttribute("content")?.trim() ?? document.querySelector("meta[property=\"og:image\"]")?.getAttribute("content")?.trim() ?? "";
+	function coverFromMeta() {
+		const read = (selector, attribute = "content") => document.querySelector(selector)?.getAttribute(attribute)?.trim() ?? "";
+		return read("meta[property=\"og:image:secure_url\"]") || read("meta[property=\"og:image\"]") || read("meta[property=\"og:image:url\"]") || read("meta[name=\"twitter:image\"]") || read("meta[itemprop=\"image\"]") || read("link[rel=\"image_src\"]", "href");
 	}
-	function kinopoiskDetails() {
-		let year = "";
-		let genre = "";
+	function imageUrl(value) {
+		if (typeof value === "string") return value;
+		if (Array.isArray(value)) return imageUrl(value[0]);
+		if (value && typeof value === "object") {
+			const record = value;
+			if (typeof record.url === "string") return record.url;
+			if (typeof record.contentUrl === "string") return record.contentUrl;
+		}
+		return "";
+	}
+	function absoluteUrl(raw) {
+		if (!raw) return "";
+		try {
+			const url = new URL(raw, location.href);
+			return url.protocol === "http:" || url.protocol === "https:" ? url.href : "";
+		} catch {
+			return "";
+		}
+	}
+	function kinopoiskPosterFromHtml() {
+		const urls = (document.documentElement?.innerHTML ?? "").match(/https:\/\/avatars\.mds\.yandex\.net\/get-kinopoisk-image\/[^"'\\\s>]+/g) ?? [];
+		for (const marker of [
+			"600x900",
+			"400x600",
+			"300x450",
+			"original"
+		]) {
+			const hit = urls.find((url) => url.includes(marker) && !url.includes(".webp"));
+			if (hit) return hit;
+		}
+		return urls[0] ?? "";
+	}
+	function readJsonLd() {
+		const info = {
+			year: "",
+			genre: "",
+			image: ""
+		};
+		const visit = (node) => {
+			if (Array.isArray(node)) {
+				node.forEach(visit);
+				return;
+			}
+			if (typeof node !== "object" || node === null) return;
+			const record = node;
+			if (!info.year && typeof record.datePublished === "string" && /^\d{4}/.test(record.datePublished)) info.year = record.datePublished.slice(0, 4);
+			if (!info.genre && Array.isArray(record.genre)) info.genre = record.genre.filter((g) => typeof g === "string").join(", ");
+			if (!info.image) info.image = imageUrl(record.image) || imageUrl(record.primaryImageOfPage);
+			if (record["@graph"]) visit(record["@graph"]);
+		};
 		document.querySelectorAll("script[type=\"application/ld+json\"]").forEach((script) => {
 			try {
-				const data = JSON.parse(script.textContent ?? "");
-				const nodes = Array.isArray(data) ? data : [data];
-				for (const node of nodes) {
-					if (typeof node !== "object" || node === null) continue;
-					if (!year && typeof node.datePublished === "string" && /^\d{4}/.test(node.datePublished)) year = node.datePublished.slice(0, 4);
-					if (!genre && Array.isArray(node.genre)) genre = node.genre.filter((g) => typeof g === "string").join(", ");
-				}
+				visit(JSON.parse(script.textContent ?? ""));
 			} catch {}
 		});
-		return {
-			year,
-			genre
-		};
+		return info;
+	}
+	function pageCover(jsonLdImage, scanHtml = false) {
+		return absoluteUrl(jsonLdImage) || absoluteUrl(coverFromMeta()) || (scanHtml ? absoluteUrl(kinopoiskPosterFromHtml()) : "");
 	}
 	function extractKinopoisk() {
 		const match = location.pathname.match(/^\/(film|series)\/(\d+)/);
@@ -62,14 +104,14 @@
 		if (!title || title.startsWith("Кинопоиск.")) return null;
 		title = title.replace("— смотреть онлайн в хорошем качестве — Кинопоиск", "").trim();
 		if (!title) return null;
-		const { year, genre } = kinopoiskDetails();
+		const ld = readJsonLd();
 		return {
 			kinopoisk: match[2],
 			type: match[1] === "series" ? "series" : "movie",
 			title,
-			cover: ogImage(),
-			year,
-			genre
+			cover: pageCover(ld.image, true),
+			year: ld.year,
+			genre: ld.genre
 		};
 	}
 	function extractImdb() {
@@ -84,7 +126,7 @@
 		return {
 			imdb: seriesLink ?? fromUrl,
 			title,
-			cover: ogImage()
+			cover: pageCover(readJsonLd().image)
 		};
 	}
 	function extractTmdb() {
@@ -96,24 +138,25 @@
 			tmdb: match[2],
 			type: match[1] === "tv" ? "series" : "movie",
 			title,
-			cover: ogImage()
+			cover: pageCover(readJsonLd().image)
 		};
 	}
 	function extractLetterboxd() {
 		const title = ogTitle();
 		if (!title) return null;
+		const cover = pageCover(readJsonLd().image);
 		const links = Array.from(document.querySelectorAll("a[href]"));
 		const imdb = links.find((a) => /imdb\.com\/title\/tt\d+/.test(a.getAttribute("href") ?? ""))?.getAttribute("href")?.match(/\/title\/(tt\d+)/)?.[1];
 		if (imdb) return {
 			imdb,
 			title,
-			cover: ogImage()
+			cover
 		};
 		const tmdb = links.find((a) => /themoviedb\.org\/(movie|tv)\/\d+/.test(a.getAttribute("href") ?? ""))?.getAttribute("href")?.match(/\/(?:movie|tv)\/(\d+)/)?.[1];
 		if (tmdb) return {
 			tmdb,
 			title,
-			cover: ogImage()
+			cover
 		};
 		return null;
 	}

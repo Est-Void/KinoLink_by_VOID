@@ -40,36 +40,97 @@ function ogTitle(): string {
   );
 }
 
-function ogImage(): string {
+// Cover candidates in v1 order: JSON-LD poster first, then meta tags, then a
+// raw-HTML scan (Kinopoisk injects the poster via scripts, so meta may be absent).
+function coverFromMeta(): string {
+  const read = (selector: string, attribute = 'content'): string =>
+    document.querySelector(selector)?.getAttribute(attribute)?.trim() ?? '';
   return (
-    document.querySelector('meta[property="og:image:secure_url"]')?.getAttribute('content')?.trim() ??
-    document.querySelector('meta[property="og:image"]')?.getAttribute('content')?.trim() ??
-    ''
+    read('meta[property="og:image:secure_url"]') ||
+    read('meta[property="og:image"]') ||
+    read('meta[property="og:image:url"]') ||
+    read('meta[name="twitter:image"]') ||
+    read('meta[itemprop="image"]') ||
+    read('link[rel="image_src"]', 'href')
+  );
+}
+
+function imageUrl(value: unknown): string {
+  if (typeof value === 'string') return value;
+  if (Array.isArray(value)) return imageUrl(value[0]);
+  if (value && typeof value === 'object') {
+    const record = value as Record<string, unknown>;
+    if (typeof record.url === 'string') return record.url;
+    if (typeof record.contentUrl === 'string') return record.contentUrl;
+  }
+  return '';
+}
+
+// Resolve relative/protocol-relative URLs and drop anything that is not http(s).
+function absoluteUrl(raw: string): string {
+  if (!raw) return '';
+  try {
+    const url = new URL(raw, location.href);
+    return url.protocol === 'http:' || url.protocol === 'https:' ? url.href : '';
+  } catch {
+    return '';
+  }
+}
+
+// Kinopoisk renders the poster into the DOM; scan the HTML as a last resort.
+function kinopoiskPosterFromHtml(): string {
+  const html = document.documentElement?.innerHTML ?? '';
+  const urls =
+    html.match(/https:\/\/avatars\.mds\.yandex\.net\/get-kinopoisk-image\/[^"'\\\s>]+/g) ?? [];
+  for (const marker of ['600x900', '400x600', '300x450', 'original']) {
+    const hit = urls.find((url) => url.includes(marker) && !url.includes('.webp'));
+    if (hit) return hit;
+  }
+  return urls[0] ?? '';
+}
+
+interface JsonLdInfo {
+  year: string;
+  genre: string;
+  image: string;
+}
+
+// Year, genre and poster from ld+json markup (v1 approach, incl. @graph).
+function readJsonLd(): JsonLdInfo {
+  const info: JsonLdInfo = { year: '', genre: '', image: '' };
+  const visit = (node: unknown): void => {
+    if (Array.isArray(node)) {
+      node.forEach(visit);
+      return;
+    }
+    if (typeof node !== 'object' || node === null) return;
+    const record = node as Record<string, unknown>;
+    if (!info.year && typeof record.datePublished === 'string' && /^\d{4}/.test(record.datePublished)) {
+      info.year = record.datePublished.slice(0, 4);
+    }
+    if (!info.genre && Array.isArray(record.genre)) {
+      info.genre = record.genre.filter((g): g is string => typeof g === 'string').join(', ');
+    }
+    if (!info.image) info.image = imageUrl(record.image) || imageUrl(record.primaryImageOfPage);
+    if (record['@graph']) visit(record['@graph']);
+  };
+  document.querySelectorAll('script[type="application/ld+json"]').forEach((script) => {
+    try {
+      visit(JSON.parse(script.textContent ?? ''));
+    } catch { /* ignore malformed blocks */ }
+  });
+  return info;
+}
+
+function pageCover(jsonLdImage: string, scanHtml = false): string {
+  return (
+    absoluteUrl(jsonLdImage) ||
+    absoluteUrl(coverFromMeta()) ||
+    (scanHtml ? absoluteUrl(kinopoiskPosterFromHtml()) : '')
   );
 }
 
 // Год и жанр со страницы Кинопоиска (ld+json разметка, как в v1).
-function kinopoiskDetails(): { year: string; genre: string } {
-  let year = '';
-  let genre = '';
-  document.querySelectorAll('script[type="application/ld+json"]').forEach((script) => {
-    try {
-      const data = JSON.parse(script.textContent ?? '');
-      const nodes = Array.isArray(data) ? data : [data];
-      for (const node of nodes) {
-        if (typeof node !== 'object' || node === null) continue;
-        if (!year && typeof node.datePublished === 'string' && /^\d{4}/.test(node.datePublished)) {
-          year = node.datePublished.slice(0, 4);
-        }
-        if (!genre && Array.isArray(node.genre)) {
-          genre = node.genre.filter((g: unknown) => typeof g === 'string').join(', ');
-        }
-      }
-    } catch { /* ignore malformed blocks */ }
-  });
-  return { year, genre };
-}
-
 function extractKinopoisk(): RawRef | null {
   const match = location.pathname.match(/^\/(film|series)\/(\d+)/);
   if (!match) return null;
@@ -77,14 +138,14 @@ function extractKinopoisk(): RawRef | null {
   if (!title || title.startsWith('Кинопоиск.')) return null;
   title = title.replace('— смотреть онлайн в хорошем качестве — Кинопоиск', '').trim();
   if (!title) return null;
-  const { year, genre } = kinopoiskDetails();
+  const ld = readJsonLd();
   return {
     kinopoisk: match[2],
     type: match[1] === 'series' ? 'series' : 'movie',
     title,
-    cover: ogImage(),
-    year,
-    genre,
+    cover: pageCover(ld.image, true),
+    year: ld.year,
+    genre: ld.genre,
   };
 }
 
@@ -103,7 +164,7 @@ function extractImdb(): RawRef | null {
     title = title.slice(0, title.lastIndexOf(')') + 1).trim();
   }
   if (!title) return null;
-  return { imdb: seriesLink ?? fromUrl, title, cover: ogImage() };
+  return { imdb: seriesLink ?? fromUrl, title, cover: pageCover(readJsonLd().image) };
 }
 
 function extractTmdb(): RawRef | null {
@@ -115,24 +176,25 @@ function extractTmdb(): RawRef | null {
     tmdb: match[2],
     type: match[1] === 'tv' ? 'series' : 'movie',
     title,
-    cover: ogImage(),
+    cover: pageCover(readJsonLd().image),
   };
 }
 
 function extractLetterboxd(): RawRef | null {
   const title = ogTitle();
   if (!title) return null;
+  const cover = pageCover(readJsonLd().image);
   const links = Array.from(document.querySelectorAll('a[href]'));
   const imdb = links
     .find((a) => /imdb\.com\/title\/tt\d+/.test(a.getAttribute('href') ?? ''))
     ?.getAttribute('href')
     ?.match(/\/title\/(tt\d+)/)?.[1];
-  if (imdb) return { imdb, title, cover: ogImage() };
+  if (imdb) return { imdb, title, cover };
   const tmdb = links
     .find((a) => /themoviedb\.org\/(movie|tv)\/\d+/.test(a.getAttribute('href') ?? ''))
     ?.getAttribute('href')
     ?.match(/\/(?:movie|tv)\/(\d+)/)?.[1];
-  if (tmdb) return { tmdb, title, cover: ogImage() };
+  if (tmdb) return { tmdb, title, cover };
   return null;
 }
 

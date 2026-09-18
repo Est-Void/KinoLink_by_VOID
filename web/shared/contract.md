@@ -45,6 +45,10 @@ interface MovieRef {
    `kinopoisk > imdb > tmdb` (см. `pickID` в `server/api.go`).
 3. Пустой `data: []` → «Источник не найден».
 4. Ошибка сети/502 → «Источники временно недоступны».
+5. Обложка в списке просмотренных: кросс-доменный `cover` рендерится через
+   `GET /api/cover?url=<encoded>` (`server/cover.go`) — обход hotlink/referer и
+   SSRF-защита; URL того же origin используется напрямую. Любая ошибка прокси
+   или не-image ответ → плейсхолдер «🎞».
 
 ## Примеры
 
