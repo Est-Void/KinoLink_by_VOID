@@ -80,6 +80,9 @@ func routes(cfg config, host string, port int) http.Handler {
 	mux.HandleFunc("/api/players", func(w http.ResponseWriter, r *http.Request) {
 		playersHandler(w, r, cfg)
 	})
+	mux.HandleFunc("/api/cover", func(w http.ResponseWriter, r *http.Request) {
+		coverHandler(w, r, coverHTTPClient)
+	})
 	// Any other /api/ path must stay a JSON 404 and never fall through to the
 	// SPA handler (which would answer 503 while the player is unbuilt).
 	mux.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) {
