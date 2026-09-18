@@ -16,36 +16,30 @@ function kinopoiskReferenceButton(): HTMLButtonElement | null {
   return found instanceof HTMLButtonElement ? found : null;
 }
 
-const KP_STYLE_PROPS = [
-  'backgroundColor',
-  'backgroundImage',
-  'color',
-  'border',
-  'borderRadius',
-  'height',
-  'paddingLeft',
-  'paddingRight',
-  'fontSize',
-  'fontWeight',
-  'fontFamily',
-  'letterSpacing',
-  'textTransform',
-] as const;
+// Кнопка как в main: классы Кинопоиска (точная геометрия) + градиентная
+// заливка поверх + лёгкое «дыхание» свечения.
+const KP_BUTTON_CLASSES = [
+  'style_button__Awsrq',
+  'style_buttonSize52__MBeHC',
+  'style_buttonPrimary__Qn_9l',
+  'style_buttonDark__pBW5l',
+  'style_withIconLeft__USlpL',
+].join(' ');
 
-// Кнопка как у Кинопоиска: та же геометрия и заливка, что у соседней.
-function styleKinopoiskButton(btn: HTMLButtonElement, ref: HTMLButtonElement): void {
-  const computed = getComputedStyle(ref);
-  for (const prop of KP_STYLE_PROPS) {
-    const value = computed[prop];
-    if (value) btn.style[prop] = value;
-  }
-  btn.style.display = 'inline-flex';
-  btn.style.alignItems = 'center';
-  btn.style.justifyContent = 'center';
-  btn.style.gap = '8px';
-  btn.style.marginRight = '8px';
-  btn.style.cursor = 'pointer';
-  btn.style.flexShrink = '0';
+const KP_WRAPPER_CLASS = 'styles_button__bW_ew';
+
+function injectBreathStyle(): void {
+  if (document.getElementById('kinolink-breath')) return;
+  const style = document.createElement('style');
+  style.id = 'kinolink-breath';
+  style.textContent = [
+    '@keyframes kinolink-breathe {',
+    '  0%, 100% { box-shadow: 0 0 8px rgba(122, 47, 208, 0.35); }',
+    '  50% { box-shadow: 0 0 20px rgba(122, 47, 208, 0.75); }',
+    '}',
+    `#${BUTTON_ID} { animation: kinolink-breathe 3s ease-in-out infinite; }`,
+  ].join('\n');
+  document.head.appendChild(style);
 }
 
 function findAnchor(site: Site): { parent: Element; mode: 'before' | 'after' | 'append' } | null {
@@ -97,15 +91,32 @@ export function ensureButton(site: Site, onClick: () => void): void {
   btn.title = 'Смотреть через KinoLink';
   btn.addEventListener('click', onClick);
 
-  // Кинопоиск: кнопка-близнец соседней (иконка + текст, стили один в один).
+  // Кинопоиск: кнопка как в main — рядом с «Буду смотреть».
   if (site === 'kinopoisk') {
     const ref = kinopoiskReferenceButton();
     if (ref?.parentElement) {
-      btn.innerHTML =
-        '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M7 4.5v15l13-7.5-13-7.5Z" fill="currentColor"/></svg>';
+      injectBreathStyle();
+
+      const wrapper = document.createElement('div');
+      wrapper.className = KP_WRAPPER_CLASS;
+      wrapper.style.marginRight = '8px';
+
+      btn.className = KP_BUTTON_CLASSES;
+      btn.setAttribute('aria-pressed', 'false');
+      btn.style.setProperty('background', 'linear-gradient(45deg, #2b0a45 0%, #000000 100%)', 'important');
+      btn.style.setProperty('background-color', 'transparent', 'important');
+
+      const icon = document.createElement('span');
+      icon.style.display = 'flex';
+      icon.style.alignItems = 'center';
+      icon.style.justifyContent = 'center';
+      icon.innerHTML =
+        '<svg width="24" height="24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M6 3.375 21 12 6 20.625V3.375Z" fill="#ffffff"/></svg>';
+
+      btn.appendChild(icon);
       btn.appendChild(document.createTextNode('Смотреть'));
-      styleKinopoiskButton(btn, ref);
-      ref.parentElement.before(btn);
+      wrapper.appendChild(btn);
+      ref.parentElement.before(wrapper);
       logger.info('button attached', site);
       return;
     }
