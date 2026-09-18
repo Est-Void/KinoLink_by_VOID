@@ -185,6 +185,21 @@ a:focus {
 	letter-spacing: 0.02em;
 }
 
+#logo {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	user-select: none;
+	flex-shrink: 0;
+}
+
+#logo img {
+	display: block;
+	height: 1.5rem;
+	width: 1.5rem;
+	border-radius: var(--radius-sm);
+}
+
 #theme-toggle {
 	display: flex;
 	align-items: center;
