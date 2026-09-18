@@ -225,7 +225,7 @@
 		if (scriptVersion) params.set("v", scriptVersion);
 		return `?${params.toString()}`;
 	}
-	var PLAYER_URL = "https://example.com/";
+	var PLAYER_URL = "http://127.0.0.1:8080/";
 	var PLAYER_OVERRIDE_KEY = "kinolink-player-url";
 	function playerBase() {
 		try {

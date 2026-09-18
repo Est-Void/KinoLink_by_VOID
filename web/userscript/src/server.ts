@@ -2,17 +2,18 @@
 // script, so it always opens the hosted player. One constant, no prompts,
 // no port scanning — user friendly by design.
 //
-// Local dev override (never shown to users): run once in the console on any
-// of the movie sites:
-//   localStorage.setItem('kinolink-player-url', 'http://127.0.0.1:8080/')
+// Dev branch default is the local server so the button works out of the box.
+// TODO(release): flip to the production player URL (docker hosting).
+// Temporary override for any base URL (never shown to users), set once in
+// the console on any of the movie sites:
+//   localStorage.setItem('kinolink-player-url', 'http://192.168.1.5:8080/')
 
 import { buildPlayerQuery, parseMovieRef } from '../../shared/movie.ts';
 import { VERSION } from '../../shared/version.ts';
 import type { RawRef } from './sites.ts';
 import { logger } from './log.ts';
 
-// TODO: production player URL (docker hosting). Must end with a slash.
-const PLAYER_URL = 'https://example.com/';
+const PLAYER_URL = 'http://127.0.0.1:8080/';
 const PLAYER_OVERRIDE_KEY = 'kinolink-player-url';
 
 function playerBase(): string {
