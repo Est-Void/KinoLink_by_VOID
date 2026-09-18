@@ -211,7 +211,7 @@
 		].join("\n");
 		document.head.appendChild(style);
 	}
-	var PLAY_SVG_16 = "<svg width=\"16\" height=\"16\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M6 3.375 21 12 6 20.625V3.375Z\" fill=\"currentColor\"/></svg>";
+	var PLAY_SVG_16 = "<svg width=\"16\" height=\"16\" style=\"width:16px;height:16px;flex-shrink:0;display:block\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M6 3.375 21 12 6 20.625V3.375Z\" fill=\"currentColor\"/></svg>";
 	function attachMainStyleButton(ref) {
 		const btn = makeButton();
 		const wrapper = document.createElement("div");
