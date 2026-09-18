@@ -1,15 +1,25 @@
-// In-DOM «Смотреть» button. Per-site anchors with a floating fallback so the
-// button is always reachable even when the site markup changes.
-// Styling is intentionally bare — decoration comes later.
+// In-DOM «Смотреть» button. Kinopoisk cascade: desktop button row ->
+// title fallback (mobile landing) -> floating button. Other sites: anchor
+// or floating fallback.
 
 import type { Site } from './sites.ts';
 import { logger } from './log.ts';
 
 export const BUTTON_ID = 'kinolink-watch-button';
 
+let currentOnClick: () => void = () => {};
+
+function makeButton(): HTMLButtonElement {
+  const btn = document.createElement('button');
+  btn.id = BUTTON_ID;
+  btn.type = 'button';
+  btn.title = 'Смотреть через KinoLink';
+  btn.addEventListener('click', () => currentOnClick());
+  return btn;
+}
+
 function kinopoiskReferenceButton(): HTMLButtonElement | null {
-  // «Буду смотреть» — живая кнопка Кинопоиска рядом с нашей. Копируем её
-  // вычисленные стили, а не классы: CSS-модули КП переименовываются.
+  // «Буду смотреть» — живая кнопка Кинопоиска рядом с нашей.
   const found = Array.from(document.querySelectorAll('button')).find(
     (el) => el.getAttribute('title') === 'Буду смотреть',
   );
@@ -42,6 +52,58 @@ function injectBreathStyle(): void {
   document.head.appendChild(style);
 }
 
+function attachMainStyleButton(ref: HTMLButtonElement): void {
+  const btn = makeButton();
+  const wrapper = document.createElement('div');
+  wrapper.className = KP_WRAPPER_CLASS;
+  wrapper.style.display = 'inline-flex';
+  wrapper.style.marginRight = '8px';
+
+  btn.className = KP_BUTTON_CLASSES;
+  btn.setAttribute('aria-pressed', 'false');
+  btn.style.setProperty('background', 'linear-gradient(45deg, #2b0a45 0%, #000000 100%)', 'important');
+  btn.style.setProperty('background-color', 'transparent', 'important');
+
+  const icon = document.createElement('span');
+  icon.style.display = 'flex';
+  icon.style.alignItems = 'center';
+  icon.style.justifyContent = 'center';
+  icon.innerHTML =
+    '<svg width="24" height="24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M6 3.375 21 12 6 20.625V3.375Z" fill="#ffffff"/></svg>';
+
+  btn.appendChild(icon);
+  btn.appendChild(document.createTextNode('Смотреть'));
+  wrapper.appendChild(btn);
+  // Соседом самой кнопки, а не её контейнера — иначе выпадаем из ряда.
+  ref.before(wrapper);
+}
+
+// Мобильный лендинг: широкая кнопка под заголовком, тач-френдли 48px.
+function attachMobileButton(after: Element): void {
+  const btn = makeButton();
+  btn.style.cssText = [
+    'display:flex',
+    'align-items:center',
+    'justify-content:center',
+    'gap:8px',
+    'width:100%',
+    'min-height:48px',
+    'margin:12px 0',
+    'padding:12px 16px',
+    'font-size:17px',
+    'font-weight:700',
+    'color:#fff',
+    'background:linear-gradient(45deg, #2b0a45 0%, #000000 100%)',
+    'border:1px solid #7a2fd0',
+    'border-radius:12px',
+    'cursor:pointer',
+  ].join(';');
+  btn.innerHTML =
+    '<svg width="22" height="22" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M6 3.375 21 12 6 20.625V3.375Z" fill="#ffffff"/></svg>';
+  btn.appendChild(document.createTextNode('Смотреть'));
+  after.after(btn);
+}
+
 function findAnchor(site: Site): { parent: Element; mode: 'before' | 'after' | 'append' } | null {
   switch (site) {
     case 'kinopoisk': {
@@ -65,7 +127,8 @@ function findAnchor(site: Site): { parent: Element; mode: 'before' | 'after' | '
   }
 }
 
-function styleButton(btn: HTMLButtonElement, floating: boolean): void {
+function styleFallbackButton(btn: HTMLButtonElement, floating: boolean): void {
+  btn.textContent = '▶ Смотреть';
   btn.style.cssText = [
     'background:#2b0a45',
     'color:#fff',
@@ -84,55 +147,37 @@ function styleButton(btn: HTMLButtonElement, floating: boolean): void {
 
 export function ensureButton(site: Site, onClick: () => void): void {
   if (document.getElementById(BUTTON_ID)) return;
+  currentOnClick = onClick;
 
-  const btn = document.createElement('button');
-  btn.id = BUTTON_ID;
-  btn.type = 'button';
-  btn.title = 'Смотреть через KinoLink';
-  btn.addEventListener('click', onClick);
-
-  // Кинопоиск: кнопка как в main — рядом с «Буду смотреть».
+  // Кинопоиск: каскад десктопный ряд -> заголовок (мобильный лендинг) ->
+  // общий фолбэк. Каждый шаг логируется, чтобы по консоли было видно,
+  // какой якорь сработал на конкретном устройстве.
   if (site === 'kinopoisk') {
+    injectBreathStyle();
     const ref = kinopoiskReferenceButton();
-    if (ref?.parentElement) {
-      injectBreathStyle();
-
-      const wrapper = document.createElement('div');
-      wrapper.className = KP_WRAPPER_CLASS;
-      wrapper.style.display = 'inline-flex';
-      wrapper.style.marginRight = '8px';
-
-      btn.className = KP_BUTTON_CLASSES;
-      btn.setAttribute('aria-pressed', 'false');
-      btn.style.setProperty('background', 'linear-gradient(45deg, #2b0a45 0%, #000000 100%)', 'important');
-      btn.style.setProperty('background-color', 'transparent', 'important');
-
-      const icon = document.createElement('span');
-      icon.style.display = 'flex';
-      icon.style.alignItems = 'center';
-      icon.style.justifyContent = 'center';
-      icon.innerHTML =
-        '<svg width="24" height="24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M6 3.375 21 12 6 20.625V3.375Z" fill="#ffffff"/></svg>';
-
-      btn.appendChild(icon);
-      btn.appendChild(document.createTextNode('Смотреть'));
-      wrapper.appendChild(btn);
-      // Соседом самой кнопки, а не её контейнера — иначе выпадаем из ряда.
-      ref.before(wrapper);
-      logger.info('button attached', site);
+    if (ref) {
+      attachMainStyleButton(ref);
+      logger.info('kp anchor: desktop-ref');
       return;
     }
+    const title = document.querySelector('main h1, article h1, h1');
+    if (title) {
+      attachMobileButton(title);
+      logger.info('kp anchor: title-fallback');
+      return;
+    }
+    logger.info('kp anchor: none');
   }
 
-  btn.textContent = '▶ Смотреть';
+  const btn = makeButton();
   const anchor = findAnchor(site);
   if (!anchor) {
     logger.warn('no anchor for', site, '— using floating button');
-    styleButton(btn, true);
+    styleFallbackButton(btn, true);
     document.body.appendChild(btn);
     return;
   }
-  styleButton(btn, false);
+  styleFallbackButton(btn, false);
   if (anchor.mode === 'before') anchor.parent.before(btn);
   else if (anchor.mode === 'after') anchor.parent.after(btn);
   else anchor.parent.appendChild(btn);

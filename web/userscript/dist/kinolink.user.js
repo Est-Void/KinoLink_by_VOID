@@ -172,6 +172,15 @@
 		error: (...args) => console.error("[KinoLink]", ...args)
 	};
 	var BUTTON_ID = "kinolink-watch-button";
+	var currentOnClick = () => {};
+	function makeButton() {
+		const btn = document.createElement("button");
+		btn.id = BUTTON_ID;
+		btn.type = "button";
+		btn.title = "Смотреть через KinoLink";
+		btn.addEventListener("click", () => currentOnClick());
+		return btn;
+	}
 	function kinopoiskReferenceButton() {
 		const found = Array.from(document.querySelectorAll("button")).find((el) => el.getAttribute("title") === "Буду смотреть");
 		return found instanceof HTMLButtonElement ? found : null;
@@ -196,6 +205,49 @@
 			`#${BUTTON_ID} { animation: kinolink-breathe 3s ease-in-out infinite; }`
 		].join("\n");
 		document.head.appendChild(style);
+	}
+	function attachMainStyleButton(ref) {
+		const btn = makeButton();
+		const wrapper = document.createElement("div");
+		wrapper.className = KP_WRAPPER_CLASS;
+		wrapper.style.display = "inline-flex";
+		wrapper.style.marginRight = "8px";
+		btn.className = KP_BUTTON_CLASSES;
+		btn.setAttribute("aria-pressed", "false");
+		btn.style.setProperty("background", "linear-gradient(45deg, #2b0a45 0%, #000000 100%)", "important");
+		btn.style.setProperty("background-color", "transparent", "important");
+		const icon = document.createElement("span");
+		icon.style.display = "flex";
+		icon.style.alignItems = "center";
+		icon.style.justifyContent = "center";
+		icon.innerHTML = "<svg width=\"24\" height=\"24\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M6 3.375 21 12 6 20.625V3.375Z\" fill=\"#ffffff\"/></svg>";
+		btn.appendChild(icon);
+		btn.appendChild(document.createTextNode("Смотреть"));
+		wrapper.appendChild(btn);
+		ref.before(wrapper);
+	}
+	function attachMobileButton(after) {
+		const btn = makeButton();
+		btn.style.cssText = [
+			"display:flex",
+			"align-items:center",
+			"justify-content:center",
+			"gap:8px",
+			"width:100%",
+			"min-height:48px",
+			"margin:12px 0",
+			"padding:12px 16px",
+			"font-size:17px",
+			"font-weight:700",
+			"color:#fff",
+			"background:linear-gradient(45deg, #2b0a45 0%, #000000 100%)",
+			"border:1px solid #7a2fd0",
+			"border-radius:12px",
+			"cursor:pointer"
+		].join(";");
+		btn.innerHTML = "<svg width=\"22\" height=\"22\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M6 3.375 21 12 6 20.625V3.375Z\" fill=\"#ffffff\"/></svg>";
+		btn.appendChild(document.createTextNode("Смотреть"));
+		after.after(btn);
 	}
 	function findAnchor(site) {
 		switch (site) {
@@ -229,7 +281,8 @@
 			}
 		}
 	}
-	function styleButton(btn, floating) {
+	function styleFallbackButton(btn, floating) {
+		btn.textContent = "▶ Смотреть";
 		btn.style.cssText = [
 			"background:#2b0a45",
 			"color:#fff",
@@ -250,45 +303,32 @@
 	}
 	function ensureButton(site, onClick) {
 		if (document.getElementById("kinolink-watch-button")) return;
-		const btn = document.createElement("button");
-		btn.id = BUTTON_ID;
-		btn.type = "button";
-		btn.title = "Смотреть через KinoLink";
-		btn.addEventListener("click", onClick);
+		currentOnClick = onClick;
 		if (site === "kinopoisk") {
+			injectBreathStyle();
 			const ref = kinopoiskReferenceButton();
-			if (ref?.parentElement) {
-				injectBreathStyle();
-				const wrapper = document.createElement("div");
-				wrapper.className = KP_WRAPPER_CLASS;
-				wrapper.style.display = "inline-flex";
-				wrapper.style.marginRight = "8px";
-				btn.className = KP_BUTTON_CLASSES;
-				btn.setAttribute("aria-pressed", "false");
-				btn.style.setProperty("background", "linear-gradient(45deg, #2b0a45 0%, #000000 100%)", "important");
-				btn.style.setProperty("background-color", "transparent", "important");
-				const icon = document.createElement("span");
-				icon.style.display = "flex";
-				icon.style.alignItems = "center";
-				icon.style.justifyContent = "center";
-				icon.innerHTML = "<svg width=\"24\" height=\"24\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M6 3.375 21 12 6 20.625V3.375Z\" fill=\"#ffffff\"/></svg>";
-				btn.appendChild(icon);
-				btn.appendChild(document.createTextNode("Смотреть"));
-				wrapper.appendChild(btn);
-				ref.before(wrapper);
-				logger.info("button attached", site);
+			if (ref) {
+				attachMainStyleButton(ref);
+				logger.info("kp anchor: desktop-ref");
 				return;
 			}
+			const title = document.querySelector("main h1, article h1, h1");
+			if (title) {
+				attachMobileButton(title);
+				logger.info("kp anchor: title-fallback");
+				return;
+			}
+			logger.info("kp anchor: none");
 		}
-		btn.textContent = "▶ Смотреть";
+		const btn = makeButton();
 		const anchor = findAnchor(site);
 		if (!anchor) {
 			logger.warn("no anchor for", site, "— using floating button");
-			styleButton(btn, true);
+			styleFallbackButton(btn, true);
 			document.body.appendChild(btn);
 			return;
 		}
-		styleButton(btn, false);
+		styleFallbackButton(btn, false);
 		if (anchor.mode === "before") anchor.parent.before(btn);
 		else if (anchor.mode === "after") anchor.parent.after(btn);
 		else anchor.parent.appendChild(btn);
