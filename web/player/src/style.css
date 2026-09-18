@@ -1,20 +1,7 @@
 /* KinoLink v2 player: design ported from main (selectors, radii, motion),
  * oled values only. Theme split into [data-theme="..."] blocks comes later. */
 
-:root,
-[data-theme='oled'] {
-	--color-white: #ffffff;
-	--color-grey: #888888;
-	--color-purple: #000000;
-	--color-purple-glow: rgba(0, 0, 0, 0);
-	--color-purple-subtle: rgba(0, 0, 0, 0);
-	--color-purple-mid: rgba(0, 0, 0, 0);
-	--color-bg: #000000;
-	--color-surface: #000000;
-	--color-surface-hover: #0a0a0a;
-	--color-error-text: #fed7d5;
-	--color-error-border: #e00702;
-	--color-error-bg: #230100;
+:root {
 	--radius-sm: 8px;
 	--radius-md: 14px;
 	--radius-lg: 20px;
@@ -27,6 +14,52 @@
 	--font-mono: 'JetBrains Mono', 'Fira Code', Menlo, Consolas, Monaco, monospace;
 	font-size: 18px;
 	color-scheme: dark;
+}
+
+/* Pure OLED: absolute black, white accents. */
+[data-theme='oled'] {
+	--color-white: #ffffff;
+	--color-grey: #888888;
+	--color-bg: #000000;
+	--color-surface: #000000;
+	--color-surface-hover: #0a0a0a;
+	--color-border: rgba(255, 255, 255, 0.05);
+	--color-hover: rgba(255, 255, 255, 0.03);
+	--color-ring: rgba(255, 255, 255, 0.14);
+	--body-bg: #000000;
+	--body-image: none;
+}
+
+/* est-Void: dark purple tints, muted purple accent. */
+[data-theme='estvoid'] {
+	--color-white: #efe9f7;
+	--color-grey: #8f86a3;
+	--color-bg: #0c0714;
+	--color-surface: #100a1a;
+	--color-surface-hover: #171029;
+	--color-border: rgba(122, 47, 208, 0.14);
+	--color-hover: rgba(122, 47, 208, 0.08);
+	--color-ring: rgba(122, 47, 208, 0.55);
+	--body-bg: #0c0714;
+	--body-image:
+		radial-gradient(circle at 15% 50%, rgba(122, 47, 208, 0.07) 0%, transparent 40%),
+		radial-gradient(circle at 85% 30%, rgba(43, 10, 69, 0.16) 0%, transparent 40%);
+}
+
+/* Titan: dark with orange accents. */
+[data-theme='titan'] {
+	--color-white: #f5efe6;
+	--color-grey: #8d8577;
+	--color-bg: #0a0805;
+	--color-surface: #0e0b08;
+	--color-surface-hover: #161210;
+	--color-border: rgba(224, 122, 0, 0.14);
+	--color-hover: rgba(224, 122, 0, 0.08);
+	--color-ring: rgba(224, 122, 0, 0.55);
+	--body-bg: #0a0805;
+	--body-image:
+		radial-gradient(circle at 15% 50%, rgba(224, 122, 0, 0.05) 0%, transparent 40%),
+		radial-gradient(circle at 85% 30%, rgba(120, 60, 0, 0.1) 0%, transparent 40%);
 }
 
 * {
@@ -49,7 +82,9 @@ body {
 	min-height: 100dvh;
 	overflow: hidden;
 	color: var(--color-white);
-	background-color: #000000;
+	background-color: var(--body-bg);
+	background-image: var(--body-image);
+	background-attachment: fixed;
 	font-family: var(--font-sans);
 	-webkit-font-smoothing: antialiased;
 }
@@ -117,7 +152,7 @@ a:focus {
 	height: auto;
 	overflow: hidden;
 	border-radius: var(--radius-xl);
-	border: 1px solid rgba(255, 255, 255, 0.05);
+	border: 1px solid var(--color-border);
 	background: var(--color-surface);
 	box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
 	animation: scaleIn 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
@@ -130,7 +165,7 @@ a:focus {
 	gap: 0.75rem;
 	width: 100%;
 	padding: 0.75rem 1.25rem;
-	border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+	border-bottom: 1px solid var(--color-border);
 	background: rgba(0, 0, 0, 0.7);
 	border-radius: var(--radius-xl) var(--radius-xl) 0 0;
 	flex-shrink: 0;
@@ -145,6 +180,80 @@ a:focus {
 	font-weight: 600;
 	margin-right: auto;
 	letter-spacing: 0.02em;
+}
+
+#theme-toggle {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	flex-shrink: 0;
+	width: 2.5rem;
+	height: 2.5rem;
+	border-radius: var(--radius-md);
+	color: var(--color-grey);
+	transition: all var(--transition);
+	position: relative;
+}
+
+#theme-toggle:hover,
+#theme-toggle:focus {
+	color: var(--color-white);
+	background: var(--color-hover);
+}
+
+#theme-toggle.active {
+	color: var(--color-white);
+	background: var(--color-hover);
+}
+
+#theme-panel {
+	position: absolute;
+	z-index: 10;
+	top: calc(100% + 0.5rem);
+	right: 1.25rem;
+	display: flex;
+	flex-direction: column;
+	gap: 0.5rem;
+	min-width: 12rem;
+	padding: 0.75rem;
+	border-radius: var(--radius-md);
+	border: 1px solid var(--color-border);
+	background: var(--color-surface);
+	box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+	animation: slideUp 0.25s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.theme-option {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	padding: 0.6rem 0.9rem;
+	border-radius: var(--radius-sm);
+	border: 1px solid var(--color-border);
+	background: transparent;
+	color: var(--color-grey);
+	font-size: 0.85rem;
+	text-align: left;
+	transition: all var(--transition);
+}
+
+.theme-option:hover,
+.theme-option:focus {
+	color: var(--color-white);
+	background: var(--color-hover);
+}
+
+.theme-option.active {
+	color: var(--color-white);
+	border-color: var(--color-ring);
+}
+
+.theme-option .dot {
+	width: 0.8rem;
+	height: 0.8rem;
+	border-radius: 50%;
+	flex-shrink: 0;
+	border: 1px solid var(--color-grey);
 }
 
 #content {
@@ -204,7 +313,7 @@ a:focus {
 	padding: 0.4rem;
 	margin: 0 0.5rem 0.5rem;
 	border-radius: var(--radius-lg);
-	border: 1px solid rgba(255, 255, 255, 0.04);
+	border: 1px solid var(--color-border);
 	background: rgba(0, 0, 0, 0.55);
 }
 
@@ -236,15 +345,15 @@ a:focus {
 
 .source:hover,
 .source:focus {
-	color: rgba(255, 255, 255, 0.7);
-	background: rgba(255, 255, 255, 0.03);
+	color: var(--color-white);
+	background: var(--color-hover);
 }
 
 .source.selected {
-	color: rgba(255, 255, 255, 0.92);
+	color: var(--color-white);
 	cursor: default;
 	background: rgba(0, 0, 0, 0.35);
-	box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
+	box-shadow: inset 0 0 0 1px var(--color-ring);
 	font-weight: 600;
 }
 
@@ -257,7 +366,7 @@ a:focus {
 	width: 0;
 	border-radius: var(--radius-md);
 	background: rgba(0, 0, 0, 0.35);
-	box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
+	box-shadow: inset 0 0 0 1px var(--color-ring);
 	transition: transform var(--transition-slow), width var(--transition-slow);
 	will-change: transform, width;
 	pointer-events: none;

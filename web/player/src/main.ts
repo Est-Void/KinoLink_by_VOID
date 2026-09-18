@@ -13,6 +13,62 @@ interface Source {
 }
 
 const PREFERRED_KEY = 'kinolink-preferred-source';
+const THEME_KEY = 'kinolink-theme';
+
+const THEMES = {
+  oled: { label: 'Pure OLED', dot: '#000000' },
+  estvoid: { label: 'est-Void', dot: '#7a2fd0' },
+  titan: { label: 'Титан', dot: '#e07a00' },
+} as const;
+
+type Theme = keyof typeof THEMES;
+
+function currentTheme(): Theme {
+  const stored = localStorage.getItem(THEME_KEY);
+  return stored === 'estvoid' || stored === 'titan' ? stored : 'oled';
+}
+
+function applyTheme(theme: Theme): void {
+  document.documentElement.dataset.theme = theme;
+  localStorage.setItem(THEME_KEY, theme);
+  document.querySelectorAll('.theme-option').forEach((option) => {
+    const active = (option as HTMLElement).dataset.theme === theme;
+    option.classList.toggle('active', active);
+    option.setAttribute('aria-pressed', String(active));
+  });
+}
+
+function renderThemeOptions(): void {
+  const panel = el('theme-panel');
+  panel.innerHTML = '';
+  (Object.keys(THEMES) as Theme[]).forEach((id) => {
+    const option = document.createElement('button');
+    option.type = 'button';
+    option.className = 'theme-option';
+    option.dataset.theme = id;
+    const dot = document.createElement('span');
+    dot.className = 'dot';
+    dot.style.background = THEMES[id].dot;
+    const name = document.createElement('span');
+    name.textContent = THEMES[id].label;
+    option.append(dot, name);
+    option.addEventListener('click', () => {
+      applyTheme(id);
+      toggleThemePanel(false);
+    });
+    panel.appendChild(option);
+  });
+  applyTheme(currentTheme());
+}
+
+function toggleThemePanel(open?: boolean): void {
+  const panel = el('theme-panel');
+  const toggle = el('theme-toggle');
+  const willOpen = open ?? panel.hidden;
+  panel.hidden = !willOpen;
+  toggle.classList.toggle('active', willOpen);
+  toggle.setAttribute('aria-expanded', String(willOpen));
+}
 
 let resizeHandler: (() => void) | null = null;
 
@@ -103,6 +159,21 @@ function renderSources(sources: Source[]): void {
 }
 
 async function init(): Promise<void> {
+  renderThemeOptions();
+
+  el('theme-toggle').addEventListener('click', () => toggleThemePanel());
+  document.addEventListener('click', (event) => {
+    const panel = el('theme-panel');
+    if (panel.hidden) return;
+    const target = event.target as Node;
+    if (!panel.contains(target) && !el('theme-toggle').contains(target)) {
+      toggleThemePanel(false);
+    }
+  });
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') toggleThemePanel(false);
+  });
+
   const { movie, scriptVersion } = parsePlayerQuery(location.search);
   renderVersion(scriptVersion);
   if (!movie) {
