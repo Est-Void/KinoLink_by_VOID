@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         KinoLink by VOID
 // @namespace    kinolink
-// @version      2.0.0-dev
+// @version      2.0.1-dev
 // @author       VOID
 // @description  KinoLink v2 — watch button for Kinopoisk, IMDb, TMDB, Letterboxd
 // @downloadURL  https://github.com/Est-Void/KinoLink_by_VOID/raw/refs/heads/rewrite/v2/web/userscript/dist/kinolink.user.js
@@ -16,7 +16,7 @@
 
 (function() {
 	"use strict";
-	var VERSION = "2.0.0-dev";
+	var VERSION = "2.0.1-dev";
 	function isDomain(host, domain) {
 		return host === domain || host.endsWith(`.${domain}`);
 	}

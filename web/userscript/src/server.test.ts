@@ -11,7 +11,8 @@ describe('buildPlayerUrl', () => {
 
   it('joins base and query with ?', () => {
     const url = buildPlayerUrl('http://127.0.0.1:8080/', { ...ref }, VERSION);
-    assert.match(url, /^http:\/\/127\.0\.0\.1:8080\/\?m=[A-Za-z0-9\-_]+&v=2\.0\.0-dev$/);
+    const escaped = VERSION.replace(/\./g, '\\.');
+    assert.match(url, new RegExp(`^http://127\\.0\\.0\\.1:8080/\\?m=[A-Za-z0-9\\-_]+&v=${escaped}$`));
   });
 
   it('adds a missing trailing slash', () => {

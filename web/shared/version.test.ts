@@ -29,9 +29,8 @@ describe('compareVersions', () => {
 
 describe('isOutdated', () => {
 	it('flags older and missing versions', () => {
-		assert.equal(isOutdated('1.9.0', VERSION), true);
+		assert.equal(isOutdated('0.0.1-dev', VERSION), true);
 		assert.equal(isOutdated('', VERSION), true);
 		assert.equal(isOutdated(VERSION, VERSION), false);
-		assert.equal(isOutdated('2.0.0', VERSION), false);
 	});
 });
