@@ -16,7 +16,9 @@ COPY --from=builder /out/kinolink /app/kinolink
 # lands; until then the server answers 503 with a hint on / (API works).
 # The --static-dir default (web/player/dist) already resolves under WORKDIR.
 EXPOSE 8080
+# --healthcheck performs a real /api/status probe: distroless has no curl/wget.
+# The port is pinned so the mapped container port always matches the server.
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s \
-    CMD ["/app/kinolink", "--help"]
+    CMD ["/app/kinolink", "--healthcheck", "--port", "8080"]
 ENTRYPOINT ["/app/kinolink"]
-CMD ["--lan"]
+CMD ["--lan", "--port", "8080"]

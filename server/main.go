@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -23,11 +24,12 @@ const (
 )
 
 type config struct {
-	port      int
-	host      string
-	lan       bool
-	staticDir string
-	kinobox   string
+	port        int
+	host        string
+	lan         bool
+	staticDir   string
+	kinobox     string
+	healthcheck bool
 }
 
 func main() {
@@ -43,7 +45,12 @@ func run() error {
 	flag.BoolVar(&cfg.lan, "lan", false, "listen on all IPv4 interfaces for LAN devices")
 	flag.StringVar(&cfg.staticDir, "static-dir", "web/player/dist", "directory with the built player")
 	flag.StringVar(&cfg.kinobox, "kinobox", "https://fbphdplay.top,https://api.kinobox.tv", "comma-separated upstream Kinobox API base URLs (first healthy wins)")
+	flag.BoolVar(&cfg.healthcheck, "healthcheck", false, "probe /api/status on the local server and exit (used by Docker HEALTHCHECK)")
 	flag.Parse()
+
+	if cfg.healthcheck {
+		return runHealthcheck(cfg.port)
+	}
 
 	if cfg.port != 0 && (cfg.port < 1 || cfg.port > 65535) {
 		return errors.New("port must be in range 1-65535")
@@ -85,6 +92,29 @@ func run() error {
 	printBanner(host, port, cfg)
 	if err := srv.Serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return err
+	}
+	return nil
+}
+
+// runHealthcheck performs a real HTTP probe for container health checks
+// (distroless images ship no curl/wget). Exit code is driven by the caller.
+func runHealthcheck(port int) error {
+	if port == 0 {
+		port = defaultPort
+	}
+	client := &http.Client{Timeout: 3 * time.Second}
+	resp, err := client.Get(fmt.Sprintf("http://127.0.0.1:%d/api/status", port))
+	if err != nil {
+		return fmt.Errorf("healthcheck: %w", err)
+	}
+	defer resp.Body.Close()
+
+	var status statusResponse
+	if err := json.NewDecoder(resp.Body).Decode(&status); err != nil {
+		return fmt.Errorf("healthcheck: decode: %w", err)
+	}
+	if resp.StatusCode != http.StatusOK || status.Status != "ok" {
+		return fmt.Errorf("healthcheck: status %d", resp.StatusCode)
 	}
 	return nil
 }

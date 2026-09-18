@@ -13,14 +13,16 @@ import (
 func staticHandler(dir string) http.Handler {
 	fs := http.FileServer(http.Dir(dir))
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if _, err := os.Stat(dir); err != nil {
-			w.Header().Set("Content-Type", "application/json; charset=utf-8")
-			w.WriteHeader(http.StatusServiceUnavailable)
-			_, _ = w.Write([]byte(`{"error":"player not built yet","hint":"build web/player first"}`))
+		// API paths never fall through to the SPA/index fallback.
+		if strings.HasPrefix(r.URL.Path, "/api/") {
+			writeErrorJSON(w, http.StatusNotFound, "not found")
 			return
 		}
-		if strings.HasPrefix(r.URL.Path, "/api/") {
-			http.NotFound(w, r)
+		if _, err := os.Stat(dir); err != nil {
+			writeJSON(w, http.StatusServiceUnavailable, map[string]string{
+				"error": "player not built yet",
+				"hint":  "build web/player first",
+			})
 			return
 		}
 		// SPA fallback: unknown paths serve index.html so ?m= links survive refresh.

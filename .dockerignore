@@ -7,4 +7,3 @@ expl/
 .opencode/
 server/kinolink
 web/*/node_modules/
-web/*/dist/

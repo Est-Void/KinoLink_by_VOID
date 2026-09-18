@@ -1,10 +1,10 @@
 .PHONY: dev build vet run test docker-build
 
 dev:
-	cd server && go run .
+	cd server && go run . --static-dir ../web/player/dist
 
 run:
-	cd server && go run . --port 8080
+	cd server && go run . --static-dir ../web/player/dist --port 8080
 
 vet:
 	cd server && go vet ./...
