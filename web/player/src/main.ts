@@ -1,5 +1,5 @@
-// Minimal v2 player: title + source buttons + iframe + script-freshness toast.
-// No themes, no history, no decoration — those come later.
+// Minimal v2 player (oled theme): title in the header, centered 16:9 window,
+// sources below, version line top-right. No history, no extra themes yet.
 
 import { parsePlayerQuery } from '../../shared/movie';
 import { VERSION, isOutdated } from '../../shared/version';
@@ -21,29 +21,39 @@ function el<T extends HTMLElement>(id: string): T {
 }
 
 function showHint(text: string): void {
-  el('hint').textContent = text;
+  const frame = el('frame');
+  frame.innerHTML = '';
+  const p = document.createElement('p');
+  p.id = 'hint';
+  p.textContent = text;
+  frame.appendChild(p);
 }
 
-function showToast(installed: string): void {
-  const toast = el('toast');
-  toast.hidden = false;
-  toast.innerHTML = '';
-  const span = document.createElement('span');
-  span.textContent = `Версия скрипта устарела (${installed || 'неизвестно'} → ${VERSION}). `;
-  const link = document.createElement('a');
-  link.href = SCRIPT_UPDATE_URL;
-  link.target = '_blank';
-  link.textContent = 'Обновить скрипт';
-  toast.append(span, link);
+// Always shows the installed script version; when it is older than the
+// player, appends "New -> <required>" linking to the script update.
+function renderVersion(installed: string): void {
+  const version = el('version');
+  version.innerHTML = '';
+  version.append(`V-${installed || '?.?.?'}`);
+  if (isOutdated(installed, VERSION)) {
+    version.classList.add('update');
+    const sep = document.createElement('span');
+    sep.textContent = ' · New -> ';
+    const link = document.createElement('a');
+    link.href = SCRIPT_UPDATE_URL;
+    link.target = '_blank';
+    link.textContent = VERSION;
+    version.append(sep, link);
+  }
 }
 
 function selectSource(source: Source): void {
-  const content = el('content');
-  content.innerHTML = '';
-  const frame = document.createElement('iframe');
-  frame.src = source.iframeUrl;
-  frame.allowFullscreen = true;
-  content.appendChild(frame);
+  const frame = el('frame');
+  frame.innerHTML = '';
+  const iframe = document.createElement('iframe');
+  iframe.src = source.iframeUrl;
+  iframe.allowFullscreen = true;
+  frame.appendChild(iframe);
 }
 
 function renderSources(sources: Source[]): void {
@@ -72,11 +82,11 @@ function renderSources(sources: Source[]): void {
 
 async function init(): Promise<void> {
   const { movie, scriptVersion } = parsePlayerQuery(location.search);
+  renderVersion(scriptVersion);
   if (!movie) {
     showHint('Откройте страницу фильма и нажмите «Смотреть».');
     return;
   }
-  if (isOutdated(scriptVersion, VERSION)) showToast(scriptVersion);
 
   document.title = `${movie.title} | KinoLink`;
   el('title').textContent = movie.title;

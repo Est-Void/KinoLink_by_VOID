@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="ru" data-theme="oled">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -8,10 +8,17 @@
 </head>
 <body>
   <div id="app">
-    <header><h1 id="title">KinoLink</h1></header>
-    <div id="toast" hidden></div>
+    <header id="header">
+      <h1 id="title">KinoLink</h1>
+      <div id="meta">
+        <span id="designed">Designed by est-Void</span>
+        <span id="version"></span>
+      </div>
+    </header>
+    <main id="stage">
+      <div id="frame"><p id="hint">Загрузка…</p></div>
+    </main>
     <div id="sources"></div>
-    <div id="content"><p id="hint">Загрузка…</p></div>
   </div>
   <script type="module" src="/src/main.ts"></script>
 </body>
