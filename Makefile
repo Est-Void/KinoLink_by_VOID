@@ -1,4 +1,4 @@
-.PHONY: dev build vet run test docker-build
+.PHONY: dev build vet run test web-build docker-build
 
 dev:
 	cd server && go run . --static-dir ../web/player/dist
@@ -15,5 +15,8 @@ test:
 build:
 	cd server && CGO_ENABLED=0 go build -o ../kinolink .
 
-docker-build:
+web-build:
+	cd web && npm install --no-audit --no-fund && npm run build --workspaces
+
+docker-build: web-build
 	docker build -t kinolink:dev .

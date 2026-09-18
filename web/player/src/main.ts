@@ -7,7 +7,7 @@ import { coverSrc } from '../../shared/cover.ts';
 import { VERSION, isOutdated } from '../../shared/version.ts';
 
 const SCRIPT_UPDATE_URL =
-  'https://github.com/Est-Void/KinoLink_by_VOID/raw/refs/heads/rewrite/v2/web/userscript/dist/kinolink.user.js';
+  'https://github.com/Est-Void/KinoLink_by_VOID/raw/refs/heads/main/web/userscript/dist/kinolink.user.js';
 
 interface Source {
   type: string;

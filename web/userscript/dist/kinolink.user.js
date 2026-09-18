@@ -4,8 +4,8 @@
 // @version      2.0.4-dev
 // @author       VOID
 // @description  KinoLink v2 — watch button for Kinopoisk, IMDb, TMDB, Letterboxd
-// @downloadURL  https://github.com/Est-Void/KinoLink_by_VOID/raw/refs/heads/rewrite/v2/web/userscript/dist/kinolink.user.js
-// @updateURL    https://github.com/Est-Void/KinoLink_by_VOID/raw/refs/heads/rewrite/v2/web/userscript/dist/kinolink.user.js
+// @downloadURL  https://github.com/Est-Void/KinoLink_by_VOID/raw/refs/heads/main/web/userscript/dist/kinolink.user.js
+// @updateURL    https://github.com/Est-Void/KinoLink_by_VOID/raw/refs/heads/main/web/userscript/dist/kinolink.user.js
 // @match        *://www.kinopoisk.ru/*
 // @match        *://hd.kinopoisk.ru/*
 // @match        *://*.imdb.com/title/*

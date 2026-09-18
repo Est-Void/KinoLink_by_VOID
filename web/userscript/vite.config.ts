@@ -2,10 +2,9 @@ import { defineConfig } from 'vite';
 import monkey from 'vite-plugin-monkey';
 import { VERSION } from '../shared/version.ts';
 
-// Direct install/reinstall link (same role as the README link on main).
-// TODO: switch branch to main on merge.
+// Direct install/reinstall link (same role as the README link).
 const DOWNLOAD_URL =
-  'https://github.com/Est-Void/KinoLink_by_VOID/raw/refs/heads/rewrite/v2/web/userscript/dist/kinolink.user.js';
+  'https://github.com/Est-Void/KinoLink_by_VOID/raw/refs/heads/main/web/userscript/dist/kinolink.user.js';
 
 export default defineConfig({
   plugins: [
