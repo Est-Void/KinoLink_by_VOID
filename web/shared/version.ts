@@ -3,7 +3,7 @@
 // Branch rule: versions here are always x.y.z-dev (see contract.md).
 // Keep in sync with appVersion in server/main.go (checked in CI).
 
-export const VERSION = '2.0.1-dev';
+export const VERSION = '2.0.2-dev';
 
 interface Parsed {
 	numbers: number[];

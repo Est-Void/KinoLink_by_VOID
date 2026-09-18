@@ -17,7 +17,7 @@ import (
 
 const (
 	appName      = "kinolink"
-	appVersion   = "2.0.1-dev"
+	appVersion   = "2.0.2-dev"
 	defaultPort  = 8080
 	proxyTimeout = 8 * time.Second
 )
