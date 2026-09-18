@@ -9,9 +9,14 @@ export interface MovieRef {
 	imdb?: string;
 	tmdb?: string;
 	type?: 'movie' | 'series';
+	cover?: string;
+	year?: string;
+	genre?: string;
 }
 
 const TITLE_MAX = 300;
+const DETAIL_MAX = 200;
+const COVER_MAX = 500;
 const KINOPOISK_RE = /^\d{1,20}$/;
 const IMDB_RE = /^tt\d{1,20}$/;
 const TMDB_RE = /^\d{1,20}$/;
@@ -51,6 +56,15 @@ export function parseMovieRef(input: unknown): MovieRef | null {
 	if (!out.kinopoisk && !out.imdb && !out.tmdb) return null;
 
 	if (input.type === 'series' || input.type === 'movie') out.type = input.type;
+
+	const cover = cleanString(input.cover).slice(0, COVER_MAX);
+	if (cover && (cover.startsWith('http://') || cover.startsWith('https://'))) {
+		out.cover = cover;
+	}
+	const year = cleanString(input.year);
+	if (/^\d{4}$/.test(year)) out.year = year;
+	const genre = cleanString(input.genre).slice(0, DETAIL_MAX);
+	if (genre) out.genre = genre;
 
 	return out;
 }

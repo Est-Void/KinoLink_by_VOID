@@ -2,6 +2,9 @@
  * oled values only. Theme split into [data-theme="..."] blocks comes later. */
 
 :root {
+	--color-error-text: #fed7d5;
+	--color-error-border: #e00702;
+	--color-error-bg: #230100;
 	--radius-sm: 8px;
 	--radius-md: 14px;
 	--radius-lg: 20px;
@@ -195,19 +198,36 @@ a:focus {
 	position: relative;
 }
 
+#watched-toggle {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	flex-shrink: 0;
+	width: 2.5rem;
+	height: 2.5rem;
+	border-radius: var(--radius-md);
+	color: var(--color-grey);
+	transition: all var(--transition);
+	position: relative;
+}
+
 #theme-toggle:hover,
-#theme-toggle:focus {
+#theme-toggle:focus,
+#watched-toggle:hover,
+#watched-toggle:focus {
 	color: var(--color-white);
 	background: var(--color-hover);
 }
 
-#theme-toggle.active {
+#theme-toggle.active,
+#watched-toggle.active {
 	color: var(--color-white);
 	background: var(--color-hover);
 }
 
-/* Slide-in theme list docked to the player (not the viewport). */
-#theme-sidebar {
+/* Slide-in sidebars docked to the player (not the viewport). */
+#theme-sidebar,
+#watched-sidebar {
 	position: absolute;
 	z-index: 10;
 	top: 0;
@@ -224,7 +244,8 @@ a:focus {
 	transition: transform var(--transition), box-shadow var(--transition);
 }
 
-#theme-sidebar.open {
+#theme-sidebar.open,
+#watched-sidebar.open {
 	transform: translateX(0);
 	box-shadow: 4px 0 24px rgba(0, 0, 0, 0.5);
 }
@@ -269,6 +290,177 @@ a:focus {
 	flex-direction: column;
 	gap: 0.5rem;
 	padding: 0.75rem;
+}
+
+#watched-list {
+	flex: 1 1 auto;
+	overflow-y: auto;
+	overflow-x: hidden;
+	display: flex;
+	flex-direction: column;
+	gap: 0.5rem;
+	padding: 0.75rem;
+}
+
+#sort-toggle {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	flex-shrink: 0;
+	min-width: 2.75rem;
+	height: 1.75rem;
+	padding: 0 0.5rem;
+	border: 1px solid var(--color-border);
+	border-radius: var(--radius-pill);
+	background: transparent;
+	color: var(--color-grey);
+	font-family: var(--font-mono);
+	font-size: 0.7rem;
+	letter-spacing: 0.05em;
+	transition: all var(--transition);
+}
+
+#sort-toggle:hover,
+#sort-toggle:focus {
+	color: var(--color-white);
+	background: var(--color-hover);
+}
+
+.watched-item {
+	display: flex;
+	align-items: stretch;
+	gap: 0.75rem;
+	padding: 0.6rem;
+	border-radius: var(--radius-md);
+	border: 1px solid var(--color-border);
+	background: var(--color-hover);
+	transition: all var(--transition);
+	animation: slideUp 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.watched-item:nth-child(1) { animation-delay: 0.02s; }
+.watched-item:nth-child(2) { animation-delay: 0.06s; }
+.watched-item:nth-child(3) { animation-delay: 0.1s; }
+.watched-item:nth-child(4) { animation-delay: 0.14s; }
+.watched-item:nth-child(5) { animation-delay: 0.18s; }
+.watched-item:nth-child(n+6) { animation-delay: 0.2s; }
+
+.watched-item:hover {
+	border-color: var(--color-ring);
+	transform: translateX(4px);
+}
+
+.watched-item.selected {
+	border-color: var(--color-ring);
+	box-shadow: 0 0 12px rgba(0, 0, 0, 0.4), inset 0 0 0 1px var(--color-ring);
+}
+
+.watched-item .cover-btn {
+	flex-shrink: 0;
+	width: 3.5rem;
+	height: 5rem;
+	padding: 0;
+	border-radius: var(--radius-sm);
+	overflow: hidden;
+	cursor: pointer;
+	background: var(--color-surface-hover);
+	border: 1px solid var(--color-border);
+	transition: border-color var(--transition);
+}
+
+.watched-item .cover-btn.no-cover {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 1.4rem;
+	color: var(--color-grey);
+}
+
+.watched-item .cover-btn.no-cover::after {
+	content: '🎞';
+}
+
+.watched-item .cover {
+	display: block;
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+	border-radius: 0;
+	border: none;
+}
+
+.watched-item .info {
+	display: flex;
+	flex: 1 1 auto;
+	flex-direction: column;
+	justify-content: center;
+	gap: 0.3rem;
+	min-width: 0;
+	overflow: hidden;
+	padding: 0;
+	text-align: left;
+	cursor: pointer;
+	background: transparent;
+	border: none;
+	color: inherit;
+}
+
+.watched-item .delete-btn {
+	flex-shrink: 0;
+	align-self: center;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 2rem;
+	height: 2rem;
+	border-radius: var(--radius-sm);
+	color: var(--color-grey);
+	background: transparent;
+	border: 1px solid transparent;
+	cursor: pointer;
+	transition: all var(--transition);
+	opacity: 0.45;
+	font-size: 1.1rem;
+	line-height: 1;
+}
+
+.watched-item:hover .delete-btn,
+.watched-item:focus-within .delete-btn {
+	opacity: 1;
+}
+
+.watched-item .delete-btn:hover,
+.watched-item .delete-btn:focus {
+	color: var(--color-error-text);
+	background: var(--color-error-bg);
+	border-color: var(--color-error-border);
+}
+
+.watched-item .row {
+	font-family: var(--font-mono);
+	font-size: 0.72rem;
+	line-height: 1.25;
+	letter-spacing: 0.04em;
+	color: var(--color-grey);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.watched-item .row.title {
+	font-family: var(--font-sans);
+	font-size: 0.88rem;
+	font-weight: 600;
+	letter-spacing: normal;
+	color: var(--color-white);
+}
+
+.watched-empty {
+	padding: 2rem 1rem;
+	font-size: 0.85rem;
+	color: var(--color-grey);
+	text-align: center;
+	animation: fadeIn 0.5s ease both;
 }
 
 /* Lava-lamp backdrop for accent themes; oled stays pure black. */

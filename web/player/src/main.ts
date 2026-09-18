@@ -1,7 +1,8 @@
 // Minimal v2 player (oled theme): title in the header, centered 16:9 window,
 // sources below, version line top-right. No history, no extra themes yet.
 
-import { parsePlayerQuery } from '../../shared/movie.ts';
+import { buildPlayerQuery, parseMovieRef, parsePlayerQuery } from '../../shared/movie.ts';
+import type { MovieRef } from '../../shared/movie.ts';
 import { VERSION, isOutdated } from '../../shared/version.ts';
 
 const SCRIPT_UPDATE_URL =
@@ -14,6 +15,150 @@ interface Source {
 
 const PREFERRED_KEY = 'kinolink-preferred-source';
 const THEME_KEY = 'kinolink-theme';
+const WATCHED_KEY = 'kinolink-watched';
+const WATCHED_SORT_KEY = 'kinolink-watched-sort';
+
+interface WatchedMovie extends MovieRef {
+  timestamp: number;
+}
+
+let currentMovie: MovieRef | null = null;
+
+function sameMovie(a: MovieRef, b: MovieRef): boolean {
+  if (a.kinopoisk && b.kinopoisk) return a.kinopoisk === b.kinopoisk;
+  if (a.imdb && b.imdb) return a.imdb === b.imdb;
+  if (a.tmdb && b.tmdb) return a.tmdb === b.tmdb;
+  return a.title === b.title;
+}
+
+function getWatchedMovies(): WatchedMovie[] {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(WATCHED_KEY) ?? '[]') as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed.flatMap((item) => {
+      const { timestamp, ...rest } = (item ?? {}) as Record<string, unknown>;
+      const movie = parseMovieRef(rest);
+      return movie ? [{ ...movie, timestamp: typeof timestamp === 'number' ? timestamp : 0 }] : [];
+    });
+  } catch {
+    return [];
+  }
+}
+
+function saveWatchedMovie(movie: MovieRef): void {
+  try {
+    const rest = getWatchedMovies().filter((item) => !sameMovie(item, movie));
+    rest.unshift({ ...movie, timestamp: Date.now() });
+    localStorage.setItem(WATCHED_KEY, JSON.stringify(rest.slice(0, 200)));
+  } catch { /* storage full or unavailable — history is best-effort */ }
+}
+
+function deleteWatchedMovie(movie: MovieRef): void {
+  try {
+    localStorage.setItem(
+      WATCHED_KEY,
+      JSON.stringify(getWatchedMovies().filter((item) => !sameMovie(item, movie))),
+    );
+  } catch { /* ignore */ }
+  renderWatchedMovies();
+}
+
+function reopenMovie(movie: MovieRef): void {
+  // timestamp отбрасывается самим parseMovieRef внутри encode.
+  window.location.assign(`${window.location.pathname}${buildPlayerQuery(movie, VERSION)}`);
+}
+
+function renderWatchedMovies(): void {
+  const list = el('watched-list');
+  list.innerHTML = '';
+  const watched = getWatchedMovies();
+  if (watched.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'watched-empty';
+    empty.textContent = 'Тут пока пусто';
+    list.appendChild(empty);
+    return;
+  }
+
+  const desc = localStorage.getItem(WATCHED_SORT_KEY) === 'desc';
+  const sorted = [...watched].sort(
+    (a, b) => a.title.localeCompare(b.title, 'ru', { sensitivity: 'base' }) * (desc ? -1 : 1),
+  );
+  updateSortLabel();
+
+  for (const movie of sorted) {
+    const item = document.createElement('div');
+    item.className = 'watched-item';
+    if (currentMovie && sameMovie(movie, currentMovie)) item.classList.add('selected');
+
+    const coverBtn = document.createElement('button');
+    coverBtn.type = 'button';
+    coverBtn.className = 'cover-btn';
+    coverBtn.title = 'Открыть';
+    coverBtn.setAttribute('aria-label', `Открыть ${movie.title}`);
+    if (movie.cover) {
+      const img = document.createElement('img');
+      img.className = 'cover';
+      img.alt = '';
+      img.loading = 'lazy';
+      img.src = movie.cover;
+      img.addEventListener('error', () => {
+        coverBtn.classList.add('no-cover');
+        img.remove();
+      });
+      coverBtn.appendChild(img);
+    } else {
+      coverBtn.classList.add('no-cover');
+    }
+    coverBtn.addEventListener('click', () => reopenMovie(movie));
+
+    const info = document.createElement('button');
+    info.type = 'button';
+    info.className = 'info';
+    info.title = 'Открыть';
+    const title = document.createElement('span');
+    title.className = 'row title';
+    title.textContent = movie.title;
+    info.appendChild(title);
+    for (const text of [movie.genre, movie.year].filter(Boolean)) {
+      const row = document.createElement('span');
+      row.className = 'row';
+      row.textContent = text ?? '';
+      info.appendChild(row);
+    }
+    info.addEventListener('click', () => reopenMovie(movie));
+
+    const del = document.createElement('button');
+    del.type = 'button';
+    del.className = 'delete-btn';
+    del.title = 'Удалить из списка';
+    del.setAttribute('aria-label', `Удалить ${movie.title}`);
+    del.textContent = '×';
+    del.addEventListener('click', (event) => {
+      event.stopPropagation();
+      deleteWatchedMovie(movie);
+    });
+
+    item.append(coverBtn, info, del);
+    list.appendChild(item);
+  }
+}
+
+function updateSortLabel(): void {
+  const sort = el('sort-toggle');
+  const desc = localStorage.getItem(WATCHED_SORT_KEY) === 'desc';
+  sort.textContent = desc ? 'Z–A' : 'A–Z';
+}
+
+function toggleWatchedSidebar(open?: boolean): void {
+  const sidebar = el('watched-sidebar');
+  const toggle = el('watched-toggle');
+  const willOpen = open ?? !sidebar.classList.contains('open');
+  sidebar.classList.toggle('open', willOpen);
+  toggle.classList.toggle('active', willOpen);
+  toggle.setAttribute('aria-expanded', String(willOpen));
+  if (willOpen) renderWatchedMovies();
+}
 
 const THEMES = {
   oled: { label: 'Pure OLED', dot: '#000000' },
@@ -172,7 +317,18 @@ async function init(): Promise<void> {
     }
   });
   document.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape') toggleThemeSidebar(false);
+    if (event.key === 'Escape') {
+      toggleThemeSidebar(false);
+      toggleWatchedSidebar(false);
+    }
+  });
+
+  el('watched-toggle').addEventListener('click', () => toggleWatchedSidebar());
+  el('watched-close').addEventListener('click', () => toggleWatchedSidebar(false));
+  el('sort-toggle').addEventListener('click', () => {
+    const desc = localStorage.getItem(WATCHED_SORT_KEY) === 'desc';
+    localStorage.setItem(WATCHED_SORT_KEY, desc ? 'asc' : 'desc');
+    renderWatchedMovies();
   });
 
   const { movie, scriptVersion } = parsePlayerQuery(location.search);
@@ -181,6 +337,8 @@ async function init(): Promise<void> {
     showHint('Откройте страницу фильма и нажмите «Смотреть».');
     return;
   }
+  currentMovie = movie;
+  saveWatchedMovie(movie);
 
   document.title = `${movie.title} | KinoLink`;
   el('title').textContent = movie.title;

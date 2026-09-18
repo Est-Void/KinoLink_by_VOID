@@ -33,6 +33,28 @@
 	function ogTitle() {
 		return document.querySelector("meta[property=\"og:title\"]")?.getAttribute("content")?.trim() ?? "";
 	}
+	function ogImage() {
+		return document.querySelector("meta[property=\"og:image:secure_url\"]")?.getAttribute("content")?.trim() ?? document.querySelector("meta[property=\"og:image\"]")?.getAttribute("content")?.trim() ?? "";
+	}
+	function kinopoiskDetails() {
+		let year = "";
+		let genre = "";
+		document.querySelectorAll("script[type=\"application/ld+json\"]").forEach((script) => {
+			try {
+				const data = JSON.parse(script.textContent ?? "");
+				const nodes = Array.isArray(data) ? data : [data];
+				for (const node of nodes) {
+					if (typeof node !== "object" || node === null) continue;
+					if (!year && typeof node.datePublished === "string" && /^\d{4}/.test(node.datePublished)) year = node.datePublished.slice(0, 4);
+					if (!genre && Array.isArray(node.genre)) genre = node.genre.filter((g) => typeof g === "string").join(", ");
+				}
+			} catch {}
+		});
+		return {
+			year,
+			genre
+		};
+	}
 	function extractKinopoisk() {
 		const match = location.pathname.match(/^\/(film|series)\/(\d+)/);
 		if (!match) return null;
@@ -40,10 +62,14 @@
 		if (!title || title.startsWith("Кинопоиск.")) return null;
 		title = title.replace("— смотреть онлайн в хорошем качестве — Кинопоиск", "").trim();
 		if (!title) return null;
+		const { year, genre } = kinopoiskDetails();
 		return {
 			kinopoisk: match[2],
 			type: match[1] === "series" ? "series" : "movie",
-			title
+			title,
+			cover: ogImage(),
+			year,
+			genre
 		};
 	}
 	function extractImdb() {
@@ -57,7 +83,8 @@
 		if (!title) return null;
 		return {
 			imdb: seriesLink ?? fromUrl,
-			title
+			title,
+			cover: ogImage()
 		};
 	}
 	function extractTmdb() {
@@ -68,7 +95,8 @@
 		return {
 			tmdb: match[2],
 			type: match[1] === "tv" ? "series" : "movie",
-			title
+			title,
+			cover: ogImage()
 		};
 	}
 	function extractLetterboxd() {
@@ -78,12 +106,14 @@
 		const imdb = links.find((a) => /imdb\.com\/title\/tt\d+/.test(a.getAttribute("href") ?? ""))?.getAttribute("href")?.match(/\/title\/(tt\d+)/)?.[1];
 		if (imdb) return {
 			imdb,
-			title
+			title,
+			cover: ogImage()
 		};
 		const tmdb = links.find((a) => /themoviedb\.org\/(movie|tv)\/\d+/.test(a.getAttribute("href") ?? ""))?.getAttribute("href")?.match(/\/(?:movie|tv)\/(\d+)/)?.[1];
 		if (tmdb) return {
 			tmdb,
-			title
+			title,
+			cover: ogImage()
 		};
 		return null;
 	}
@@ -222,6 +252,8 @@
 		logger.info("button attached", site);
 	}
 	var TITLE_MAX = 300;
+	var DETAIL_MAX = 200;
+	var COVER_MAX = 500;
 	var KINOPOISK_RE = /^\d{1,20}$/;
 	var IMDB_RE = /^tt\d{1,20}$/;
 	var TMDB_RE = /^\d{1,20}$/;
@@ -256,6 +288,12 @@
 		}
 		if (!out.kinopoisk && !out.imdb && !out.tmdb) return null;
 		if (input.type === "series" || input.type === "movie") out.type = input.type;
+		const cover = cleanString(input.cover).slice(0, COVER_MAX);
+		if (cover && (cover.startsWith("http://") || cover.startsWith("https://"))) out.cover = cover;
+		const year = cleanString(input.year);
+		if (/^\d{4}$/.test(year)) out.year = year;
+		const genre = cleanString(input.genre).slice(0, DETAIL_MAX);
+		if (genre) out.genre = genre;
 		return out;
 	}
 	function bytesToB64Url(bytes) {

@@ -28,6 +28,31 @@ describe('parseMovieRef', () => {
 		assert.equal(parseMovieRef(null), null);
 		assert.equal(parseMovieRef('x'), null);
 	});
+
+	it('keeps valid details and drops bad ones', () => {
+		assert.deepEqual(
+			parseMovieRef({
+				title: 'A',
+				kinopoisk: '1',
+				cover: 'https://example.com/a.jpg',
+				year: '2021',
+				genre: 'фантастика, драма',
+			}),
+			{
+				title: 'A',
+				type: 'movie',
+				kinopoisk: '1',
+				cover: 'https://example.com/a.jpg',
+				year: '2021',
+				genre: 'фантастика, драма',
+			},
+		);
+		assert.deepEqual(parseMovieRef({ title: 'A', kinopoisk: '1', cover: 'javascript:1', year: '21', genre: '' }), {
+			title: 'A',
+			type: 'movie',
+			kinopoisk: '1',
+		});
+	});
 });
 
 describe('encode/decode round-trip', () => {

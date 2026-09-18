@@ -14,6 +14,11 @@
   <div id="background"></div>
   <div id="container">
     <header id="header">
+      <button id="watched-toggle" type="button" aria-expanded="false" aria-label="Просмотренные" title="Просмотренные">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M3 5h18M3 12h18M3 19h18" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+        </svg>
+      </button>
       <button id="theme-toggle" type="button" aria-expanded="false" aria-label="Темы" title="Темы">
         <svg viewBox="0 0 24 24" width="20" height="20" fill="none" xmlns="http://www.w3.org/2000/svg">
           <circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="2" />
@@ -26,6 +31,20 @@
       <div class="frame" id="frame"><p id="hint">Загрузка…</p></div>
     </div>
     <div id="sources" role="tablist" aria-label="Источники воспроизведения"></div>
+    <aside id="watched-sidebar" aria-label="Просмотренные">
+      <div class="sidebar-head">
+        <div class="sidebar-head-start">
+          <button id="sort-toggle" type="button" aria-label="Порядок сортировки" title="Порядок сортировки">A–Z</button>
+          <span>Просмотренные</span>
+        </div>
+        <button id="watched-close" type="button" aria-label="Закрыть панель">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+          </svg>
+        </button>
+      </div>
+      <div id="watched-list"></div>
+    </aside>
     <aside id="theme-sidebar" aria-label="Темы">
       <div class="sidebar-head">
         <span>Темы</span>

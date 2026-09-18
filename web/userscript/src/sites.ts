@@ -10,6 +10,9 @@ export interface RawRef {
   imdb?: string;
   tmdb?: string;
   type?: 'movie' | 'series';
+  cover?: string;
+  year?: string;
+  genre?: string;
 }
 
 // Exact domain or a real subdomain — rejects lookalikes like "notkinopoisk.ru".
@@ -37,6 +40,36 @@ function ogTitle(): string {
   );
 }
 
+function ogImage(): string {
+  return (
+    document.querySelector('meta[property="og:image:secure_url"]')?.getAttribute('content')?.trim() ??
+    document.querySelector('meta[property="og:image"]')?.getAttribute('content')?.trim() ??
+    ''
+  );
+}
+
+// Год и жанр со страницы Кинопоиска (ld+json разметка, как в v1).
+function kinopoiskDetails(): { year: string; genre: string } {
+  let year = '';
+  let genre = '';
+  document.querySelectorAll('script[type="application/ld+json"]').forEach((script) => {
+    try {
+      const data = JSON.parse(script.textContent ?? '');
+      const nodes = Array.isArray(data) ? data : [data];
+      for (const node of nodes) {
+        if (typeof node !== 'object' || node === null) continue;
+        if (!year && typeof node.datePublished === 'string' && /^\d{4}/.test(node.datePublished)) {
+          year = node.datePublished.slice(0, 4);
+        }
+        if (!genre && Array.isArray(node.genre)) {
+          genre = node.genre.filter((g: unknown) => typeof g === 'string').join(', ');
+        }
+      }
+    } catch { /* ignore malformed blocks */ }
+  });
+  return { year, genre };
+}
+
 function extractKinopoisk(): RawRef | null {
   const match = location.pathname.match(/^\/(film|series)\/(\d+)/);
   if (!match) return null;
@@ -44,10 +77,14 @@ function extractKinopoisk(): RawRef | null {
   if (!title || title.startsWith('Кинопоиск.')) return null;
   title = title.replace('— смотреть онлайн в хорошем качестве — Кинопоиск', '').trim();
   if (!title) return null;
+  const { year, genre } = kinopoiskDetails();
   return {
     kinopoisk: match[2],
     type: match[1] === 'series' ? 'series' : 'movie',
     title,
+    cover: ogImage(),
+    year,
+    genre,
   };
 }
 
@@ -66,7 +103,7 @@ function extractImdb(): RawRef | null {
     title = title.slice(0, title.lastIndexOf(')') + 1).trim();
   }
   if (!title) return null;
-  return { imdb: seriesLink ?? fromUrl, title };
+  return { imdb: seriesLink ?? fromUrl, title, cover: ogImage() };
 }
 
 function extractTmdb(): RawRef | null {
@@ -78,6 +115,7 @@ function extractTmdb(): RawRef | null {
     tmdb: match[2],
     type: match[1] === 'tv' ? 'series' : 'movie',
     title,
+    cover: ogImage(),
   };
 }
 
@@ -89,12 +127,12 @@ function extractLetterboxd(): RawRef | null {
     .find((a) => /imdb\.com\/title\/tt\d+/.test(a.getAttribute('href') ?? ''))
     ?.getAttribute('href')
     ?.match(/\/title\/(tt\d+)/)?.[1];
-  if (imdb) return { imdb, title };
+  if (imdb) return { imdb, title, cover: ogImage() };
   const tmdb = links
     .find((a) => /themoviedb\.org\/(movie|tv)\/\d+/.test(a.getAttribute('href') ?? ''))
     ?.getAttribute('href')
     ?.match(/\/(?:movie|tv)\/(\d+)/)?.[1];
-  if (tmdb) return { tmdb, title };
+  if (tmdb) return { tmdb, title, cover: ogImage() };
   return null;
 }
 
