@@ -188,6 +188,7 @@
 				injectBreathStyle();
 				const wrapper = document.createElement("div");
 				wrapper.className = KP_WRAPPER_CLASS;
+				wrapper.style.display = "inline-flex";
 				wrapper.style.marginRight = "8px";
 				btn.className = KP_BUTTON_CLASSES;
 				btn.setAttribute("aria-pressed", "false");
@@ -201,7 +202,7 @@
 				btn.appendChild(icon);
 				btn.appendChild(document.createTextNode("Смотреть"));
 				wrapper.appendChild(btn);
-				ref.parentElement.before(wrapper);
+				ref.before(wrapper);
 				logger.info("button attached", site);
 				return;
 			}
