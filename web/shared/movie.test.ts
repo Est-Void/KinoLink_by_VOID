@@ -53,6 +53,19 @@ describe('parseMovieRef', () => {
 			kinopoisk: '1',
 		});
 	});
+
+	it('keeps long signed cover URLs instead of truncating them', () => {
+		// Kinopoisk serves some posters as ~3 KB signed CDN URLs.
+		const longCover = `https://kinopoisk-ru.clstorage.net/15QNP8198/${'a'.repeat(3000)}`;
+		const ref = parseMovieRef({ title: 'A', kinopoisk: '1', cover: longCover });
+		assert.equal(ref?.cover, longCover);
+		assert.equal(decodeMovieRef(encodeMovieRef(ref!))?.cover, longCover);
+	});
+
+	it('drops an over-long cover instead of keeping a broken URL', () => {
+		const tooLong = `https://example.com/${'a'.repeat(9000)}`;
+		assert.equal(parseMovieRef({ title: 'A', kinopoisk: '1', cover: tooLong })?.cover, undefined);
+	});
 });
 
 describe('encode/decode round-trip', () => {

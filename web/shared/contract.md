@@ -15,7 +15,7 @@ interface MovieRef {
   imdb?: string;          // /^tt\d{1,20}$/
   tmdb?: string;          // /^\d{1,20}$/
   type?: 'movie' | 'series'; // default 'movie'
-  cover?: string;         // http(s) URL постера, до 500 символов
+  cover?: string;         // http(s) URL постера, до 8192 символов
   year?: string;          // /^\d{4}$/
   genre?: string;         // строка жанров, до 200 символов
 }

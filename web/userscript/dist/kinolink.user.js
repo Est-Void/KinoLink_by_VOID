@@ -296,7 +296,7 @@
 	}
 	var TITLE_MAX = 300;
 	var DETAIL_MAX = 200;
-	var COVER_MAX = 500;
+	var COVER_MAX = 8192;
 	var KINOPOISK_RE = /^\d{1,20}$/;
 	var IMDB_RE = /^tt\d{1,20}$/;
 	var TMDB_RE = /^\d{1,20}$/;
@@ -331,8 +331,8 @@
 		}
 		if (!out.kinopoisk && !out.imdb && !out.tmdb) return null;
 		if (input.type === "series" || input.type === "movie") out.type = input.type;
-		const cover = cleanString(input.cover).slice(0, COVER_MAX);
-		if (cover && (cover.startsWith("http://") || cover.startsWith("https://"))) out.cover = cover;
+		const cover = cleanString(input.cover);
+		if (cover && cover.length <= COVER_MAX && (cover.startsWith("http://") || cover.startsWith("https://"))) out.cover = cover;
 		const year = cleanString(input.year);
 		if (/^\d{4}$/.test(year)) out.year = year;
 		const genre = cleanString(input.genre).slice(0, DETAIL_MAX);
