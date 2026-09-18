@@ -19,7 +19,6 @@ const (
 	appName      = "kinolink"
 	appVersion   = "2.0.0-dev"
 	defaultPort  = 8080
-	maxAutoPort  = 8129
 	proxyTimeout = 8 * time.Second
 )
 
@@ -40,7 +39,7 @@ func main() {
 
 func run() error {
 	cfg := config{}
-	flag.IntVar(&cfg.port, "port", 0, "use a specific port instead of auto-pick (8080-8129)")
+	flag.IntVar(&cfg.port, "port", defaultPort, "port to listen on (no auto-pick: busy means error)")
 	flag.StringVar(&cfg.host, "host", "", "interface to listen on (default 127.0.0.1)")
 	flag.BoolVar(&cfg.lan, "lan", false, "listen on all IPv4 interfaces for LAN devices")
 	flag.StringVar(&cfg.staticDir, "static-dir", "web/player/dist", "directory with the built player")
@@ -119,23 +118,14 @@ func runHealthcheck(port int) error {
 	return nil
 }
 
-// bind returns a listener on host:port, or the first free port in
-// defaultPort..maxAutoPort when port == 0.
+// bind listens on exactly host:port. No port scanning: the product targets
+// non-technical users, so the address must always be the same.
 func bind(host string, port int) (net.Listener, int, error) {
-	if port != 0 {
-		ln, err := net.Listen("tcp", fmt.Sprintf("%s:%d", host, port))
-		if err != nil {
-			return nil, 0, fmt.Errorf("port %d unavailable: %w", port, err)
-		}
-		return ln, port, nil
+	ln, err := net.Listen("tcp", fmt.Sprintf("%s:%d", host, port))
+	if err != nil {
+		return nil, 0, fmt.Errorf("port %d is busy, free it and try again: %w", port, err)
 	}
-	for p := defaultPort; p <= maxAutoPort; p++ {
-		ln, err := net.Listen("tcp", fmt.Sprintf("%s:%d", host, p))
-		if err == nil {
-			return ln, p, nil
-		}
-	}
-	return nil, 0, fmt.Errorf("no free port in range %d-%d", defaultPort, maxAutoPort)
+	return ln, port, nil
 }
 
 func printBanner(host string, port int, cfg config) {
