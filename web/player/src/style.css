@@ -41,9 +41,9 @@
 	--color-hover: rgba(122, 47, 208, 0.08);
 	--color-ring: rgba(122, 47, 208, 0.55);
 	--body-bg: #0c0714;
-	--body-image:
-		radial-gradient(circle at 15% 50%, rgba(122, 47, 208, 0.07) 0%, transparent 40%),
-		radial-gradient(circle at 85% 30%, rgba(43, 10, 69, 0.16) 0%, transparent 40%);
+	--body-image: none;
+	--lava-1: rgba(122, 47, 208, 0.28);
+	--lava-2: rgba(43, 10, 69, 0.35);
 }
 
 /* Titan: dark with orange accents. */
@@ -57,9 +57,9 @@
 	--color-hover: rgba(224, 122, 0, 0.08);
 	--color-ring: rgba(224, 122, 0, 0.55);
 	--body-bg: #0a0805;
-	--body-image:
-		radial-gradient(circle at 15% 50%, rgba(224, 122, 0, 0.05) 0%, transparent 40%),
-		radial-gradient(circle at 85% 30%, rgba(120, 60, 0, 0.1) 0%, transparent 40%);
+	--body-image: none;
+	--lava-1: rgba(224, 122, 0, 0.22);
+	--lava-2: rgba(120, 60, 0, 0.3);
 }
 
 * {
@@ -206,21 +206,114 @@ a:focus {
 	background: var(--color-hover);
 }
 
-#theme-panel {
-	position: absolute;
+/* Slide-in theme list, main-style collapsible sidebar. */
+#theme-sidebar {
+	position: fixed;
 	z-index: 10;
-	top: calc(100% + 0.5rem);
-	right: 1.25rem;
+	top: 0;
+	left: 0;
+	bottom: 0;
+	width: min(300px, 85%);
+	display: flex;
+	flex-direction: column;
+	background: rgba(0, 0, 0, 0.95);
+	border-right: 1px solid var(--color-border);
+	transform: translateX(-100%);
+	transition: transform var(--transition), box-shadow var(--transition);
+}
+
+#theme-sidebar.open {
+	transform: translateX(0);
+	box-shadow: 4px 0 24px rgba(0, 0, 0, 0.5);
+}
+
+.sidebar-head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.5rem;
+	padding: 1rem 1.25rem;
+	border-bottom: 1px solid var(--color-border);
+	font-size: 0.75rem;
+	font-weight: 500;
+	letter-spacing: 0.05em;
+	text-transform: uppercase;
+	color: var(--color-grey);
+	font-family: var(--font-mono);
+	flex-shrink: 0;
+}
+
+#theme-close {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 2rem;
+	height: 2rem;
+	border-radius: var(--radius-sm);
+	color: var(--color-grey);
+	transition: all var(--transition);
+}
+
+#theme-close:hover,
+#theme-close:focus {
+	color: var(--color-white);
+	background: var(--color-hover);
+}
+
+#theme-list {
+	flex: 1 1 auto;
+	overflow-y: auto;
 	display: flex;
 	flex-direction: column;
 	gap: 0.5rem;
-	min-width: 12rem;
 	padding: 0.75rem;
-	border-radius: var(--radius-md);
-	border: 1px solid var(--color-border);
-	background: var(--color-surface);
-	box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
-	animation: slideUp 0.25s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Lava-lamp backdrop for accent themes; oled stays pure black. */
+#background {
+	position: fixed;
+	z-index: 0;
+	top: -10%;
+	left: -10%;
+	width: 120%;
+	height: 120%;
+	overflow: hidden;
+	pointer-events: none;
+	filter: blur(70px) saturate(130%);
+	opacity: 0.55;
+}
+
+#background::before,
+#background::after {
+	content: '';
+	position: absolute;
+	width: 45vmax;
+	height: 45vmax;
+	border-radius: 50%;
+}
+
+#background::before {
+	left: 5%;
+	top: 10%;
+	background: radial-gradient(circle, var(--lava-1) 0%, transparent 65%);
+	animation: lava-drift 22s ease-in-out infinite alternate;
+}
+
+#background::after {
+	right: 5%;
+	bottom: 5%;
+	background: radial-gradient(circle, var(--lava-2) 0%, transparent 65%);
+	animation: lava-drift 27s ease-in-out infinite alternate-reverse;
+}
+
+[data-theme='oled'] #background {
+	display: none;
+}
+
+@keyframes lava-drift {
+	from { transform: translate(0, 0) scale(1); }
+	50% { transform: translate(9vw, -7vh) scale(1.18); }
+	to { transform: translate(-7vw, 8vh) scale(0.92); }
 }
 
 .theme-option {

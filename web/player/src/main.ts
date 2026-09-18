@@ -39,8 +39,8 @@ function applyTheme(theme: Theme): void {
 }
 
 function renderThemeOptions(): void {
-  const panel = el('theme-panel');
-  panel.innerHTML = '';
+  const list = el('theme-list');
+  list.innerHTML = '';
   (Object.keys(THEMES) as Theme[]).forEach((id) => {
     const option = document.createElement('button');
     option.type = 'button';
@@ -54,18 +54,18 @@ function renderThemeOptions(): void {
     option.append(dot, name);
     option.addEventListener('click', () => {
       applyTheme(id);
-      toggleThemePanel(false);
+      toggleThemeSidebar(false);
     });
-    panel.appendChild(option);
+    list.appendChild(option);
   });
   applyTheme(currentTheme());
 }
 
-function toggleThemePanel(open?: boolean): void {
-  const panel = el('theme-panel');
+function toggleThemeSidebar(open?: boolean): void {
+  const sidebar = el('theme-sidebar');
   const toggle = el('theme-toggle');
-  const willOpen = open ?? panel.hidden;
-  panel.hidden = !willOpen;
+  const willOpen = open ?? !sidebar.classList.contains('open');
+  sidebar.classList.toggle('open', willOpen);
   toggle.classList.toggle('active', willOpen);
   toggle.setAttribute('aria-expanded', String(willOpen));
 }
@@ -161,17 +161,18 @@ function renderSources(sources: Source[]): void {
 async function init(): Promise<void> {
   renderThemeOptions();
 
-  el('theme-toggle').addEventListener('click', () => toggleThemePanel());
+  el('theme-toggle').addEventListener('click', () => toggleThemeSidebar());
+  el('theme-close').addEventListener('click', () => toggleThemeSidebar(false));
   document.addEventListener('click', (event) => {
-    const panel = el('theme-panel');
-    if (panel.hidden) return;
+    const sidebar = el('theme-sidebar');
+    if (!sidebar.classList.contains('open')) return;
     const target = event.target as Node;
-    if (!panel.contains(target) && !el('theme-toggle').contains(target)) {
-      toggleThemePanel(false);
+    if (!sidebar.contains(target) && !el('theme-toggle').contains(target)) {
+      toggleThemeSidebar(false);
     }
   });
   document.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape') toggleThemePanel(false);
+    if (event.key === 'Escape') toggleThemeSidebar(false);
   });
 
   const { movie, scriptVersion } = parsePlayerQuery(location.search);
