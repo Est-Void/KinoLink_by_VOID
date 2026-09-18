@@ -5,3 +5,8 @@ __pycache__/
 *.pyc
 player/.kp-info-cache.json
 player/.kinolink-server.json
+kinolink
+server/kinolink
+web/player/dist/
+web/userscript/dist/
+node_modules/

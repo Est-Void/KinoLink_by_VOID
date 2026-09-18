@@ -1,0 +1,13 @@
+.git/
+.gitignore
+Dockerfile
+README.md
+compose*.yml
+expl/
+.opencode/
+player/
+userscript/
+install.sh
+server/kinolink
+web/*/node_modules/
+web/*/dist/
