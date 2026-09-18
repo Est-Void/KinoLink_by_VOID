@@ -181,6 +181,11 @@
 		btn.addEventListener("click", () => currentOnClick());
 		return btn;
 	}
+	function kinopoiskMobileActionRow() {
+		const nodes = Array.from(document.querySelectorAll("button, a, span, div"));
+		for (const node of nodes) if (node.children.length === 0 && node.textContent?.trim() === "Буду смотреть") return node.parentElement;
+		return null;
+	}
 	function kinopoiskReferenceButton() {
 		const found = Array.from(document.querySelectorAll("button")).find((el) => el.getAttribute("title") === "Буду смотреть");
 		return found instanceof HTMLButtonElement ? found : null;
@@ -226,7 +231,7 @@
 		wrapper.appendChild(btn);
 		ref.before(wrapper);
 	}
-	function attachMobileButton(after) {
+	function attachMobileButton(after, mode) {
 		const btn = makeButton();
 		btn.style.cssText = [
 			"display:flex",
@@ -247,7 +252,8 @@
 		].join(";");
 		btn.innerHTML = "<svg width=\"22\" height=\"22\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M6 3.375 21 12 6 20.625V3.375Z\" fill=\"#ffffff\"/></svg>";
 		btn.appendChild(document.createTextNode("Смотреть"));
-		after.after(btn);
+		if (mode === "append") after.appendChild(btn);
+		else after.after(btn);
 	}
 	function findAnchor(site) {
 		switch (site) {
@@ -312,9 +318,15 @@
 				logger.info("kp anchor: desktop-ref");
 				return;
 			}
+			const actions = kinopoiskMobileActionRow();
+			if (actions) {
+				attachMobileButton(actions, "after");
+				logger.info("kp anchor: mobile-actions");
+				return;
+			}
 			const title = document.querySelector("main h1, article h1, h1");
 			if (title) {
-				attachMobileButton(title);
+				attachMobileButton(title, "after");
 				logger.info("kp anchor: title-fallback");
 				return;
 			}

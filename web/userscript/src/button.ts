@@ -18,6 +18,18 @@ function makeButton(): HTMLButtonElement {
   return btn;
 }
 
+// Мобильный лендинг: ряд «Оценить | Буду смотреть | Добавить | Еще» —
+// текстовые элементы без title. Ищем листовой узел с точным текстом.
+function kinopoiskMobileActionRow(): Element | null {
+  const nodes = Array.from(document.querySelectorAll('button, a, span, div'));
+  for (const node of nodes) {
+    if (node.children.length === 0 && node.textContent?.trim() === 'Буду смотреть') {
+      return node.parentElement;
+    }
+  }
+  return null;
+}
+
 function kinopoiskReferenceButton(): HTMLButtonElement | null {
   // «Буду смотреть» — живая кнопка Кинопоиска рядом с нашей.
   const found = Array.from(document.querySelectorAll('button')).find(
@@ -78,8 +90,8 @@ function attachMainStyleButton(ref: HTMLButtonElement): void {
   ref.before(wrapper);
 }
 
-// Мобильный лендинг: широкая кнопка под заголовком, тач-френдли 48px.
-function attachMobileButton(after: Element): void {
+// Мобильный лендинг: широкая кнопка после якоря, тач-френдли 48px.
+function attachMobileButton(after: Element, mode: 'after' | 'append'): void {
   const btn = makeButton();
   btn.style.cssText = [
     'display:flex',
@@ -101,7 +113,8 @@ function attachMobileButton(after: Element): void {
   btn.innerHTML =
     '<svg width="22" height="22" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M6 3.375 21 12 6 20.625V3.375Z" fill="#ffffff"/></svg>';
   btn.appendChild(document.createTextNode('Смотреть'));
-  after.after(btn);
+  if (mode === 'append') after.appendChild(btn);
+  else after.after(btn);
 }
 
 function findAnchor(site: Site): { parent: Element; mode: 'before' | 'after' | 'append' } | null {
@@ -160,9 +173,15 @@ export function ensureButton(site: Site, onClick: () => void): void {
       logger.info('kp anchor: desktop-ref');
       return;
     }
+    const actions = kinopoiskMobileActionRow();
+    if (actions) {
+      attachMobileButton(actions, 'after');
+      logger.info('kp anchor: mobile-actions');
+      return;
+    }
     const title = document.querySelector('main h1, article h1, h1');
     if (title) {
-      attachMobileButton(title);
+      attachMobileButton(title, 'after');
       logger.info('kp anchor: title-fallback');
       return;
     }
