@@ -1,0 +1,59 @@
+import { describe, it } from 'node:test';
+import assert from 'node:assert/strict';
+import {
+	buildPlayerQuery,
+	decodeMovieRef,
+	encodeMovieRef,
+	parseMovieRef,
+	parsePlayerQuery,
+} from './movie.ts';
+
+describe('parseMovieRef', () => {
+	it('accepts a full ref and strips unknown keys', () => {
+		assert.deepEqual(
+			parseMovieRef({ title: '  Дюна  ', kinopoisk: '123', junk: 1, type: 'series' }),
+			{ title: 'Дюна', kinopoisk: '123', type: 'series' },
+		);
+	});
+
+	it('defaults type to movie', () => {
+		assert.equal(parseMovieRef({ title: 'A', imdb: 'tt0111161' })?.type, 'movie');
+	});
+
+	it('rejects empty title, bad ids and id-less refs', () => {
+		assert.equal(parseMovieRef({ title: '   ', kinopoisk: '1' }), null);
+		assert.equal(parseMovieRef({ title: 'A', kinopoisk: 'abc' }), null);
+		assert.equal(parseMovieRef({ title: 'A', imdb: 'tt' }), null);
+		assert.equal(parseMovieRef({ title: 'A' }), null);
+		assert.equal(parseMovieRef(null), null);
+		assert.equal(parseMovieRef('x'), null);
+	});
+});
+
+describe('encode/decode round-trip', () => {
+	it('survives cyrillic, emoji and quotes', () => {
+		const ref = { title: '«Дюна»: часть 2 🪱', kinopoisk: '535341', type: 'movie' } as const;
+		const encoded = encodeMovieRef({ ...ref });
+		assert.match(encoded, /^[A-Za-z0-9\-_]+$/);
+		assert.deepEqual(decodeMovieRef(encoded), { ...ref });
+	});
+
+	it('returns null on corruption, never throws', () => {
+		for (const bad of ['', '!!!', 'eyJ0aXRsZS', 'bm90LWpzb24=']) {
+			assert.equal(decodeMovieRef(bad), null);
+		}
+	});
+});
+
+describe('player query', () => {
+	it('builds and parses ?m=&v=', () => {
+		const q = buildPlayerQuery({ title: 'Dune', tmdb: '438631' }, '2.0.0');
+		const parsed = parsePlayerQuery(q);
+		assert.deepEqual(parsed.movie, { title: 'Dune', tmdb: '438631', type: 'movie' });
+		assert.equal(parsed.scriptVersion, '2.0.0');
+	});
+
+	it('missing m yields null movie', () => {
+		assert.equal(parsePlayerQuery('?v=1.0.0').movie, null);
+	});
+});
