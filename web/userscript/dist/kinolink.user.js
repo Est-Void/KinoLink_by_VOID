@@ -211,6 +211,7 @@
 		].join("\n");
 		document.head.appendChild(style);
 	}
+	var PLAY_SVG_16 = "<svg width=\"16\" height=\"16\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M6 3.375 21 12 6 20.625V3.375Z\" fill=\"currentColor\"/></svg>";
 	function attachMainStyleButton(ref) {
 		const btn = makeButton();
 		const wrapper = document.createElement("div");
@@ -230,6 +231,70 @@
 		btn.appendChild(document.createTextNode("Смотреть"));
 		wrapper.appendChild(btn);
 		ref.before(wrapper);
+	}
+	function attachImdbButton(hero) {
+		const btn = makeButton();
+		btn.style.cssText = [
+			"display:inline-flex",
+			"align-items:center",
+			"gap:8px",
+			"margin:12px 0",
+			"padding:10px 18px",
+			"font-size:15px",
+			"font-weight:700",
+			"color:#000",
+			"background:#f5c518",
+			"border:none",
+			"border-radius:4px",
+			"cursor:pointer"
+		].join(";");
+		btn.innerHTML = "<svg width=\"18\" height=\"18\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M6 3.375 21 12 6 20.625V3.375Z\" fill=\"#000000\"/></svg>";
+		btn.appendChild(document.createTextNode("Смотреть"));
+		hero.after(btn);
+	}
+	function attachTmdbButton(list) {
+		const btn = makeButton();
+		btn.style.cssText = [
+			"display:inline-flex",
+			"align-items:center",
+			"gap:6px",
+			"color:#fff",
+			"background:transparent",
+			"border:none",
+			"font-size:1em",
+			"font-weight:600",
+			"cursor:pointer",
+			"padding:4px 2px"
+		].join(";");
+		btn.innerHTML = PLAY_SVG_16;
+		btn.appendChild(document.createTextNode("Смотреть"));
+		const item = document.createElement("li");
+		item.style.display = "inline-flex";
+		item.style.alignItems = "center";
+		item.appendChild(btn);
+		list.appendChild(item);
+	}
+	function attachLetterboxdButton(details) {
+		const btn = makeButton();
+		btn.style.cssText = [
+			"display:flex",
+			"align-items:center",
+			"justify-content:center",
+			"gap:8px",
+			"width:100%",
+			"margin:12px 0",
+			"padding:10px 16px",
+			"font-size:14px",
+			"font-weight:700",
+			"color:#fff",
+			"background:#00c030",
+			"border:none",
+			"border-radius:4px",
+			"cursor:pointer"
+		].join(";");
+		btn.innerHTML = PLAY_SVG_16;
+		btn.appendChild(document.createTextNode("Смотреть"));
+		details.after(btn);
 	}
 	function attachMobileButton(after, mode) {
 		const btn = makeButton();
@@ -254,38 +319,6 @@
 		btn.appendChild(document.createTextNode("Смотреть"));
 		if (mode === "append") after.appendChild(btn);
 		else after.after(btn);
-	}
-	function findAnchor(site) {
-		switch (site) {
-			case "kinopoisk": {
-				const anchor = kinopoiskReferenceButton()?.parentElement;
-				return anchor ? {
-					parent: anchor,
-					mode: "before"
-				} : null;
-			}
-			case "imdb": {
-				const hero = document.querySelector("[data-testid=\"hero-title-block\"]");
-				return hero ? {
-					parent: hero,
-					mode: "after"
-				} : null;
-			}
-			case "tmdb": {
-				const title = document.querySelector(".header .title, .title");
-				return title ? {
-					parent: title,
-					mode: "after"
-				} : null;
-			}
-			case "letterboxd": {
-				const title = document.querySelector(".film-title-wrapper") ?? document.querySelector("h1.headline-1");
-				return title ? {
-					parent: title,
-					mode: "after"
-				} : null;
-			}
-		}
 	}
 	function styleFallbackButton(btn, floating) {
 		btn.textContent = "▶ Смотреть";
@@ -332,19 +365,34 @@
 			}
 			logger.info("kp anchor: none");
 		}
-		const btn = makeButton();
-		const anchor = findAnchor(site);
-		if (!anchor) {
-			logger.warn("no anchor for", site, "— using floating button");
-			styleFallbackButton(btn, true);
-			document.body.appendChild(btn);
-			return;
+		if (site === "imdb") {
+			const hero = document.querySelector("[data-testid=\"hero-title-block\"]");
+			if (hero) {
+				attachImdbButton(hero);
+				logger.info("anchor: imdb-hero");
+				return;
+			}
 		}
-		styleFallbackButton(btn, false);
-		if (anchor.mode === "before") anchor.parent.before(btn);
-		else if (anchor.mode === "after") anchor.parent.after(btn);
-		else anchor.parent.appendChild(btn);
-		logger.info("button attached", site);
+		if (site === "tmdb") {
+			const actions = document.querySelector("ul.auto.actions");
+			if (actions) {
+				attachTmdbButton(actions);
+				logger.info("anchor: tmdb-actions");
+				return;
+			}
+		}
+		if (site === "letterboxd") {
+			const details = document.querySelector("section.production-masthead div.details, h1.headline-1");
+			if (details) {
+				attachLetterboxdButton(details);
+				logger.info("anchor: lb-details");
+				return;
+			}
+		}
+		const btn = makeButton();
+		logger.warn("no anchor for", site, "— using floating button");
+		styleFallbackButton(btn, true);
+		document.body.appendChild(btn);
 	}
 	var TITLE_MAX = 300;
 	var DETAIL_MAX = 200;

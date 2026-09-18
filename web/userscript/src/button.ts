@@ -64,6 +64,11 @@ function injectBreathStyle(): void {
   document.head.appendChild(style);
 }
 
+const PLAY_SVG_24 =
+  '<svg width="24" height="24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M6 3.375 21 12 6 20.625V3.375Z" fill="#ffffff"/></svg>';
+const PLAY_SVG_16 =
+  '<svg width="16" height="16" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M6 3.375 21 12 6 20.625V3.375Z" fill="currentColor"/></svg>';
+
 function attachMainStyleButton(ref: HTMLButtonElement): void {
   const btn = makeButton();
   const wrapper = document.createElement('div');
@@ -88,6 +93,77 @@ function attachMainStyleButton(ref: HTMLButtonElement): void {
   wrapper.appendChild(btn);
   // Соседом самой кнопки, а не её контейнера — иначе выпадаем из ряда.
   ref.before(wrapper);
+}
+
+// IMDb: жёлтая кнопка в духе сайта после hero-блока.
+function attachImdbButton(hero: Element): void {
+  const btn = makeButton();
+  btn.style.cssText = [
+    'display:inline-flex',
+    'align-items:center',
+    'gap:8px',
+    'margin:12px 0',
+    'padding:10px 18px',
+    'font-size:15px',
+    'font-weight:700',
+    'color:#000',
+    'background:#f5c518',
+    'border:none',
+    'border-radius:4px',
+    'cursor:pointer',
+  ].join(';');
+  btn.innerHTML =
+    '<svg width="18" height="18" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M6 3.375 21 12 6 20.625V3.375Z" fill="#000000"/></svg>';
+  btn.appendChild(document.createTextNode('Смотреть'));
+  hero.after(btn);
+}
+
+// TMDB: пунктом в родной ряд ul.auto.actions, как ссылка на трейлер.
+function attachTmdbButton(list: Element): void {
+  const btn = makeButton();
+  btn.style.cssText = [
+    'display:inline-flex',
+    'align-items:center',
+    'gap:6px',
+    'color:#fff',
+    'background:transparent',
+    'border:none',
+    'font-size:1em',
+    'font-weight:600',
+    'cursor:pointer',
+    'padding:4px 2px',
+  ].join(';');
+  btn.innerHTML = PLAY_SVG_16;
+  btn.appendChild(document.createTextNode('Смотреть'));
+  const item = document.createElement('li');
+  item.style.display = 'inline-flex';
+  item.style.alignItems = 'center';
+  item.appendChild(btn);
+  list.appendChild(item);
+}
+
+// Letterboxd: широкая фирменная зелёная кнопка после блока названия.
+function attachLetterboxdButton(details: Element): void {
+  const btn = makeButton();
+  btn.style.cssText = [
+    'display:flex',
+    'align-items:center',
+    'justify-content:center',
+    'gap:8px',
+    'width:100%',
+    'margin:12px 0',
+    'padding:10px 16px',
+    'font-size:14px',
+    'font-weight:700',
+    'color:#fff',
+    'background:#00c030',
+    'border:none',
+    'border-radius:4px',
+    'cursor:pointer',
+  ].join(';');
+  btn.innerHTML = PLAY_SVG_16;
+  btn.appendChild(document.createTextNode('Смотреть'));
+  details.after(btn);
 }
 
 // Мобильный лендинг: широкая кнопка после якоря, тач-френдли 48px.
@@ -115,29 +191,6 @@ function attachMobileButton(after: Element, mode: 'after' | 'append'): void {
   btn.appendChild(document.createTextNode('Смотреть'));
   if (mode === 'append') after.appendChild(btn);
   else after.after(btn);
-}
-
-function findAnchor(site: Site): { parent: Element; mode: 'before' | 'after' | 'append' } | null {
-  switch (site) {
-    case 'kinopoisk': {
-      const ref = kinopoiskReferenceButton();
-      const anchor = ref?.parentElement;
-      return anchor ? { parent: anchor, mode: 'before' } : null;
-    }
-    case 'imdb': {
-      const hero = document.querySelector('[data-testid="hero-title-block"]');
-      return hero ? { parent: hero, mode: 'after' } : null;
-    }
-    case 'tmdb': {
-      const title = document.querySelector('.header .title, .title');
-      return title ? { parent: title, mode: 'after' } : null;
-    }
-    case 'letterboxd': {
-      const title =
-        document.querySelector('.film-title-wrapper') ?? document.querySelector('h1.headline-1');
-      return title ? { parent: title, mode: 'after' } : null;
-    }
-  }
 }
 
 function styleFallbackButton(btn: HTMLButtonElement, floating: boolean): void {
@@ -188,17 +241,39 @@ export function ensureButton(site: Site, onClick: () => void): void {
     logger.info('kp anchor: none');
   }
 
-  const btn = makeButton();
-  const anchor = findAnchor(site);
-  if (!anchor) {
-    logger.warn('no anchor for', site, '— using floating button');
-    styleFallbackButton(btn, true);
-    document.body.appendChild(btn);
-    return;
+  if (site === 'imdb') {
+    const hero = document.querySelector('[data-testid="hero-title-block"]');
+    if (hero) {
+      attachImdbButton(hero);
+      logger.info('anchor: imdb-hero');
+      return;
+    }
   }
-  styleFallbackButton(btn, false);
-  if (anchor.mode === 'before') anchor.parent.before(btn);
-  else if (anchor.mode === 'after') anchor.parent.after(btn);
-  else anchor.parent.appendChild(btn);
-  logger.info('button attached', site);
+
+  if (site === 'tmdb') {
+    // Проверенный якорь из живой верстки: родной ряд действий.
+    const actions = document.querySelector('ul.auto.actions');
+    if (actions) {
+      attachTmdbButton(actions);
+      logger.info('anchor: tmdb-actions');
+      return;
+    }
+  }
+
+  if (site === 'letterboxd') {
+    // Проверенный якорь из живой верстки: блок названия в шапке фильма.
+    const details = document.querySelector(
+      'section.production-masthead div.details, h1.headline-1',
+    );
+    if (details) {
+      attachLetterboxdButton(details);
+      logger.info('anchor: lb-details');
+      return;
+    }
+  }
+
+  const btn = makeButton();
+  logger.warn('no anchor for', site, '— using floating button');
+  styleFallbackButton(btn, true);
+  document.body.appendChild(btn);
 }
