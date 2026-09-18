@@ -64,10 +64,17 @@ function injectBreathStyle(): void {
   document.head.appendChild(style);
 }
 
-const PLAY_SVG_24 =
-  '<svg width="24" height="24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M6 3.375 21 12 6 20.625V3.375Z" fill="#ffffff"/></svg>';
-const PLAY_SVG_16 =
-  '<svg width="16" height="16" viewBox="0 0 24 24" style="width:16px !important;height:16px !important;flex-shrink:0;display:block" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M6 3.375 21 12 6 20.625V3.375Z" fill="currentColor"/></svg>';
+// Play triangle. viewBox is required: without it the 24-unit path is clipped
+// by any viewport smaller than 24px (e.g. the 18px IMDb icon). Inline
+// !important sizing keeps site CSS from shrinking the icon.
+function playSvg(size: number, color: string): string {
+  return (
+    `<svg width="${size}" height="${size}" viewBox="0 0 24 24" ` +
+    `style="width:${size}px !important;height:${size}px !important;flex-shrink:0;display:block" ` +
+    `fill="none" xmlns="http://www.w3.org/2000/svg">` +
+    `<path d="M6 3.375 21 12 6 20.625V3.375Z" fill="${color}"/></svg>`
+  );
+}
 
 function attachMainStyleButton(ref: HTMLButtonElement): void {
   const btn = makeButton();
@@ -85,8 +92,7 @@ function attachMainStyleButton(ref: HTMLButtonElement): void {
   icon.style.display = 'flex';
   icon.style.alignItems = 'center';
   icon.style.justifyContent = 'center';
-  icon.innerHTML =
-    '<svg width="24" height="24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M6 3.375 21 12 6 20.625V3.375Z" fill="#ffffff"/></svg>';
+  icon.innerHTML = playSvg(24, '#ffffff');
 
   btn.appendChild(icon);
   btn.appendChild(document.createTextNode('Смотреть'));
@@ -112,8 +118,7 @@ function attachImdbButton(hero: Element): void {
     'border-radius:999px',
     'cursor:pointer',
   ].join(';');
-  btn.innerHTML =
-    '<svg width="18" height="18" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M6 3.375 21 12 6 20.625V3.375Z" fill="#000000"/></svg>';
+  btn.innerHTML = playSvg(18, '#000000');
   btn.appendChild(document.createTextNode('Смотреть'));
   hero.after(btn);
 }
@@ -136,7 +141,7 @@ function attachTmdbButton(after: Element): void {
     'cursor:pointer',
     'white-space:nowrap',
   ].join(';');
-  btn.innerHTML = PLAY_SVG_16;
+  btn.innerHTML = playSvg(16, 'currentColor');
   btn.appendChild(document.createTextNode('Смотреть'));
   after.after(btn);
 }
@@ -160,7 +165,7 @@ function attachLetterboxdButton(details: Element): void {
     'border-radius:999px',
     'cursor:pointer',
   ].join(';');
-  btn.innerHTML = PLAY_SVG_16;
+  btn.innerHTML = playSvg(16, 'currentColor');
   btn.appendChild(document.createTextNode('Смотреть'));
   details.after(btn);
 }
@@ -185,8 +190,7 @@ function attachMobileButton(after: Element, mode: 'after' | 'append'): void {
     'border-radius:12px',
     'cursor:pointer',
   ].join(';');
-  btn.innerHTML =
-    '<svg width="22" height="22" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M6 3.375 21 12 6 20.625V3.375Z" fill="#ffffff"/></svg>';
+  btn.innerHTML = playSvg(22, '#ffffff');
   btn.appendChild(document.createTextNode('Смотреть'));
   if (mode === 'append') after.appendChild(btn);
   else after.after(btn);

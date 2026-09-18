@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         KinoLink by VOID
 // @namespace    kinolink
-// @version      2.0.3-dev
+// @version      2.0.4-dev
 // @author       VOID
 // @description  KinoLink v2 — watch button for Kinopoisk, IMDb, TMDB, Letterboxd
 // @downloadURL  https://github.com/Est-Void/KinoLink_by_VOID/raw/refs/heads/rewrite/v2/web/userscript/dist/kinolink.user.js
@@ -16,7 +16,7 @@
 
 (function() {
 	"use strict";
-	var VERSION = "2.0.3-dev";
+	var VERSION = "2.0.4-dev";
 	function isDomain(host, domain) {
 		return host === domain || host.endsWith(`.${domain}`);
 	}
@@ -211,7 +211,9 @@
 		].join("\n");
 		document.head.appendChild(style);
 	}
-	var PLAY_SVG_16 = "<svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" style=\"width:16px !important;height:16px !important;flex-shrink:0;display:block\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M6 3.375 21 12 6 20.625V3.375Z\" fill=\"currentColor\"/></svg>";
+	function playSvg(size, color) {
+		return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" style="width:${size}px !important;height:${size}px !important;flex-shrink:0;display:block" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M6 3.375 21 12 6 20.625V3.375Z" fill="${color}"/></svg>`;
+	}
 	function attachMainStyleButton(ref) {
 		const btn = makeButton();
 		const wrapper = document.createElement("div");
@@ -226,7 +228,7 @@
 		icon.style.display = "flex";
 		icon.style.alignItems = "center";
 		icon.style.justifyContent = "center";
-		icon.innerHTML = "<svg width=\"24\" height=\"24\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M6 3.375 21 12 6 20.625V3.375Z\" fill=\"#ffffff\"/></svg>";
+		icon.innerHTML = playSvg(24, "#ffffff");
 		btn.appendChild(icon);
 		btn.appendChild(document.createTextNode("Смотреть"));
 		wrapper.appendChild(btn);
@@ -248,7 +250,7 @@
 			"border-radius:999px",
 			"cursor:pointer"
 		].join(";");
-		btn.innerHTML = "<svg width=\"18\" height=\"18\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M6 3.375 21 12 6 20.625V3.375Z\" fill=\"#000000\"/></svg>";
+		btn.innerHTML = playSvg(18, "#000000");
 		btn.appendChild(document.createTextNode("Смотреть"));
 		hero.after(btn);
 	}
@@ -269,7 +271,7 @@
 			"cursor:pointer",
 			"white-space:nowrap"
 		].join(";");
-		btn.innerHTML = PLAY_SVG_16;
+		btn.innerHTML = playSvg(16, "currentColor");
 		btn.appendChild(document.createTextNode("Смотреть"));
 		after.after(btn);
 	}
@@ -291,7 +293,7 @@
 			"border-radius:999px",
 			"cursor:pointer"
 		].join(";");
-		btn.innerHTML = PLAY_SVG_16;
+		btn.innerHTML = playSvg(16, "currentColor");
 		btn.appendChild(document.createTextNode("Смотреть"));
 		details.after(btn);
 	}
@@ -314,7 +316,7 @@
 			"border-radius:12px",
 			"cursor:pointer"
 		].join(";");
-		btn.innerHTML = "<svg width=\"22\" height=\"22\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M6 3.375 21 12 6 20.625V3.375Z\" fill=\"#ffffff\"/></svg>";
+		btn.innerHTML = playSvg(22, "#ffffff");
 		btn.appendChild(document.createTextNode("Смотреть"));
 		if (mode === "append") after.appendChild(btn);
 		else after.after(btn);
