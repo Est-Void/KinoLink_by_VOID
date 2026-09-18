@@ -1,0 +1,16 @@
+{
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "userscript",
+    "player"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces",
+    "build:userscript": "npm run build -w kinolink",
+    "build:player": "npm run build -w kinolink-player"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.1"
+  }
+}

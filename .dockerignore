@@ -1,0 +1,9 @@
+.git/
+.gitignore
+Dockerfile
+README.md
+compose*.yml
+expl/
+.opencode/
+server/kinolink
+web/*/node_modules/
