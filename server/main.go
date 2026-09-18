@@ -51,7 +51,9 @@ func run() error {
 		return runHealthcheck(cfg.port)
 	}
 
-	if cfg.port != 0 && (cfg.port < 1 || cfg.port > 65535) {
+	// Port 0 is not "auto-pick" anymore: bind() listens on exactly this port,
+	// so 0 would silently land on an ephemeral port and report "port 0".
+	if cfg.port < 1 || cfg.port > 65535 {
 		return errors.New("port must be in range 1-65535")
 	}
 	if cfg.lan && cfg.host != "" {

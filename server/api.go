@@ -30,17 +30,35 @@ type playersResponse struct {
 	Data []playerSource `json:"data"`
 }
 
-// allowedCORSOrigins are pages allowed to talk to the server cross-origin.
-// The userscript runs on Kinopoisk and (when GM_xmlhttpRequest is unavailable)
-// falls back to fetch, which Chrome additionally gates behind Private Network
-// Access — hence Access-Control-Allow-Private-Network.
-// Keep in sync with @match in the userscript.
+// CORS is kept in sync with the userscript @match patterns (see
+// web/userscript/vite.config.ts): exact Kinopoisk/TMDB/Letterboxd hosts plus
+// any IMDb subdomain. Chrome additionally gates public→localhost requests
+// behind Private Network Access — hence Access-Control-Allow-Private-Network.
 var allowedCORSOrigins = map[string]bool{
 	"https://www.kinopoisk.ru":   true,
 	"https://hd.kinopoisk.ru":    true,
-	"https://www.imdb.com":       true,
 	"https://www.themoviedb.org": true,
 	"https://letterboxd.com":     true,
+}
+
+// allowedCORSSubdomains covers @match entries of the form *://*.domain/…
+var allowedCORSSubdomains = []string{"imdb.com"}
+
+func isAllowedCORSOrigin(origin string) bool {
+	if allowedCORSOrigins[origin] {
+		return true
+	}
+	u, err := url.Parse(origin)
+	if err != nil || u.Scheme != "https" {
+		return false
+	}
+	host := u.Hostname()
+	for _, domain := range allowedCORSSubdomains {
+		if host == domain || strings.HasSuffix(host, "."+domain) {
+			return true
+		}
+	}
+	return false
 }
 
 func routes(cfg config, host string, port int) http.Handler {
@@ -75,7 +93,7 @@ func routes(cfg config, host string, port int) http.Handler {
 // origins. Other origins get no CORS headers, so the browser blocks them.
 func withCORS(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if origin := r.Header.Get("Origin"); allowedCORSOrigins[origin] {
+		if origin := r.Header.Get("Origin"); isAllowedCORSOrigin(origin) {
 			h := w.Header()
 			h.Set("Access-Control-Allow-Origin", origin)
 			h.Add("Vary", "Origin")

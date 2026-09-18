@@ -7,18 +7,18 @@
   <link rel="stylesheet" href="/src/style.css">
 </head>
 <body>
-  <div id="app">
-    <div id="meta">
-      <span id="designed">Designed by est-Void</span>
-      <span id="version"></span>
-    </div>
+  <div id="topbar">
+    <span>Designed by est-Void</span>
+    <span id="version"></span>
+  </div>
+  <div id="container">
     <header id="header">
-      <h1 id="title">KinoLink</h1>
+      <div id="title">KinoLink</div>
     </header>
-    <main id="stage">
-      <div id="frame"><p id="hint">Загрузка…</p></div>
-    </main>
-    <div id="sources"></div>
+    <div id="content">
+      <div class="frame" id="frame"><p id="hint">Загрузка…</p></div>
+    </div>
+    <div id="sources" role="tablist" aria-label="Источники воспроизведения"></div>
   </div>
   <script type="module" src="/src/main.ts"></script>
 </body>

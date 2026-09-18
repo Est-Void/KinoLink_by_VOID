@@ -17,14 +17,18 @@
 (function() {
 	"use strict";
 	var VERSION = "2.0.0-dev";
-	function detectSite() {
-		const host = location.hostname;
-		const path = location.pathname;
-		if (host.endsWith("kinopoisk.ru")) return "kinopoisk";
-		if (host.endsWith("imdb.com") && path.startsWith("/title/tt")) return "imdb";
-		if (host.endsWith("themoviedb.org") && /^\/(movie|tv)\//.test(path)) return "tmdb";
-		if (host.endsWith("letterboxd.com") && path.startsWith("/film/")) return "letterboxd";
+	function isDomain(host, domain) {
+		return host === domain || host.endsWith(`.${domain}`);
+	}
+	function siteFor(host, path) {
+		if (isDomain(host, "kinopoisk.ru")) return "kinopoisk";
+		if (isDomain(host, "imdb.com") && path.startsWith("/title/tt")) return "imdb";
+		if (isDomain(host, "themoviedb.org") && /^\/(movie|tv)\//.test(path)) return "tmdb";
+		if (isDomain(host, "letterboxd.com") && path.startsWith("/film/")) return "letterboxd";
 		return null;
+	}
+	function detectSite() {
+		return siteFor(location.hostname, location.pathname);
 	}
 	function ogTitle() {
 		return document.querySelector("meta[property=\"og:title\"]")?.getAttribute("content")?.trim() ?? "";
@@ -252,9 +256,18 @@
 	}
 	var observer = null;
 	var latest = null;
+	var TICK_INTERVAL = 150;
+	var tickTimer = null;
+	function clearButton() {
+		latest = null;
+		document.getElementById(BUTTON_ID)?.remove();
+	}
 	function tick() {
 		const site = detectSite();
-		if (!site) return;
+		if (!site) {
+			clearButton();
+			return;
+		}
 		let raw = null;
 		try {
 			raw = extractors[site]();
@@ -262,17 +275,27 @@
 			logger.warn("extractor failed", error);
 			return;
 		}
-		if (!raw) return;
+		if (!raw) {
+			clearButton();
+			return;
+		}
 		latest = raw;
 		ensureButton(site, () => {
 			if (latest) openPlayer(latest);
 		});
 	}
+	function scheduleTick() {
+		if (tickTimer !== null) return;
+		tickTimer = setTimeout(() => {
+			tickTimer = null;
+			tick();
+		}, TICK_INTERVAL);
+	}
 	function init() {
 		logger.info(`KinoLink userscript ${VERSION} started`);
 		tick();
 		observer?.disconnect();
-		observer = new MutationObserver(() => tick());
+		observer = new MutationObserver(() => scheduleTick());
 		observer.observe(document.documentElement, {
 			subtree: true,
 			childList: true

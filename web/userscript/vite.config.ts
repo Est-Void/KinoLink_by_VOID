@@ -1,6 +1,6 @@
 import { defineConfig } from 'vite';
 import monkey from 'vite-plugin-monkey';
-import { VERSION } from '../shared/version';
+import { VERSION } from '../shared/version.ts';
 
 // Direct install/reinstall link (same role as the README link on main).
 // TODO: switch branch to main on merge.

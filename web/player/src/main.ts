@@ -14,6 +14,8 @@ interface Source {
 
 const PREFERRED_KEY = 'kinolink-preferred-source';
 
+let resizeHandler: (() => void) | null = null;
+
 function el<T extends HTMLElement>(id: string): T {
   const node = document.getElementById(id);
   if (!node) throw new Error(`missing #${id}`);
@@ -59,25 +61,45 @@ function selectSource(source: Source): void {
 function renderSources(sources: Source[]): void {
   const bar = el('sources');
   bar.innerHTML = '';
+  if (resizeHandler) window.removeEventListener('resize', resizeHandler);
+
+  const indicator = document.createElement('div');
+  indicator.className = 'source-indicator';
+  bar.appendChild(indicator);
+
+  const updateIndicator = (): void => {
+    const selected = bar.querySelector('.source.selected');
+    if (!(selected instanceof HTMLElement)) return;
+    indicator.style.transform = `translateX(${selected.offsetLeft - bar.offsetLeft}px)`;
+    indicator.style.width = `${selected.offsetWidth}px`;
+  };
+  resizeHandler = updateIndicator;
+
   const preferred = localStorage.getItem(PREFERRED_KEY);
   let active = sources.findIndex((s) => s.type === preferred);
   if (active === -1) active = 0;
   sources.forEach((source, index) => {
     const btn = document.createElement('button');
     btn.type = 'button';
+    btn.className = 'source';
     btn.textContent = source.type;
     if (index === active) {
       btn.classList.add('selected');
       selectSource(source);
     }
     btn.addEventListener('click', () => {
-      bar.querySelectorAll('button').forEach((b) => b.classList.remove('selected'));
+      if (btn.classList.contains('selected')) return;
+      bar.querySelectorAll('.source').forEach((b) => b.classList.remove('selected'));
       btn.classList.add('selected');
       localStorage.setItem(PREFERRED_KEY, source.type);
       selectSource(source);
+      updateIndicator();
     });
     bar.appendChild(btn);
   });
+
+  requestAnimationFrame(updateIndicator);
+  window.addEventListener('resize', updateIndicator);
 }
 
 async function init(): Promise<void> {

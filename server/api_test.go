@@ -66,14 +66,33 @@ func TestCORSPreflightForKinopoisk(t *testing.T) {
 	}
 }
 
-func TestCORSBlocksUnknownOrigin(t *testing.T) {
+func TestCORSAllowsImdbSubdomain(t *testing.T) {
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/status", nil)
-	req.Header.Set("Origin", "https://evil.example")
+	req.Header.Set("Origin", "https://m.imdb.com")
 	testRoutes("", t.TempDir()).ServeHTTP(rec, req)
 
-	if got := rec.Header().Get("Access-Control-Allow-Origin"); got != "" {
-		t.Fatalf("unexpected allow-origin for unknown origin: %q", got)
+	if got := rec.Header().Get("Access-Control-Allow-Origin"); got != "https://m.imdb.com" {
+		t.Fatalf("allow-origin = %q, want https://m.imdb.com", got)
+	}
+}
+
+func TestCORSBlocksUnknownOrigin(t *testing.T) {
+	h := testRoutes("", t.TempDir())
+	for _, origin := range []string{
+		"https://evil.example",
+		"https://notkinopoisk.ru",
+		"https://imdb.com.evil.example",
+		"http://m.imdb.com", // https only
+	} {
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, "/api/status", nil)
+		req.Header.Set("Origin", origin)
+		h.ServeHTTP(rec, req)
+
+		if got := rec.Header().Get("Access-Control-Allow-Origin"); got != "" {
+			t.Fatalf("origin %s: unexpected allow-origin %q", origin, got)
+		}
 	}
 }
 

@@ -12,14 +12,22 @@ export interface RawRef {
   type?: 'movie' | 'series';
 }
 
-export function detectSite(): Site | null {
-  const host = location.hostname;
-  const path = location.pathname;
-  if (host.endsWith('kinopoisk.ru')) return 'kinopoisk';
-  if (host.endsWith('imdb.com') && path.startsWith('/title/tt')) return 'imdb';
-  if (host.endsWith('themoviedb.org') && /^\/(movie|tv)\//.test(path)) return 'tmdb';
-  if (host.endsWith('letterboxd.com') && path.startsWith('/film/')) return 'letterboxd';
+// Exact domain or a real subdomain — rejects lookalikes like "notkinopoisk.ru".
+function isDomain(host: string, domain: string): boolean {
+  return host === domain || host.endsWith(`.${domain}`);
+}
+
+/** Pure host/path mapping, split out so it can be unit-tested without a DOM. */
+export function siteFor(host: string, path: string): Site | null {
+  if (isDomain(host, 'kinopoisk.ru')) return 'kinopoisk';
+  if (isDomain(host, 'imdb.com') && path.startsWith('/title/tt')) return 'imdb';
+  if (isDomain(host, 'themoviedb.org') && /^\/(movie|tv)\//.test(path)) return 'tmdb';
+  if (isDomain(host, 'letterboxd.com') && path.startsWith('/film/')) return 'letterboxd';
   return null;
+}
+
+export function detectSite(): Site | null {
+  return siteFor(location.hostname, location.pathname);
 }
 
 function ogTitle(): string {
