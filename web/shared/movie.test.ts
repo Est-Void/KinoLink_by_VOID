@@ -45,6 +45,24 @@ describe('encode/decode round-trip', () => {
 	});
 });
 
+// Pins the example published in contract.md to the implementation, so the
+// docs cannot drift away from the codec.
+describe('contract example', () => {
+	const EXAMPLE = 'eyJ0aXRsZSI6ItCU0Y7QvdCwIiwidHlwZSI6Im1vdmllIiwia2lub3BvaXNrIjoiNDA5NDQ2NiJ9';
+
+	it('stays decodable', () => {
+		assert.deepEqual(decodeMovieRef(EXAMPLE), {
+			title: 'Дюна',
+			type: 'movie',
+			kinopoisk: '4094466',
+		});
+	});
+
+	it('stays byte-identical to encodeMovieRef', () => {
+		assert.equal(encodeMovieRef({ title: 'Дюна', kinopoisk: '4094466', type: 'movie' }), EXAMPLE);
+	});
+});
+
 describe('player query', () => {
 	it('builds and parses ?m=&v=', () => {
 		const q = buildPlayerQuery({ title: 'Dune', tmdb: '438631' }, '2.0.0');

@@ -3,9 +3,9 @@ name: web-shared
 on:
   push:
     branches: [main, dev, rewrite/v2]
-    paths: [web/**]
+    paths: [web/**, server/main.go]
   pull_request:
-    paths: [web/**]
+    paths: [web/**, server/main.go]
 
 jobs:
   test:
@@ -15,4 +15,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-      - run: node --test web/shared/movie.test.ts
+      - run: node --test "web/**/*.test.ts"
+      # server/main.go cannot import TS, so appVersion duplicates VERSION:
+      # fail the build if they drift apart.
+      - run: |
+          ts_ver=$(node -e "import('./web/shared/version.ts').then(m => console.log(m.VERSION))")
+          go_ver=$(sed -n 's/^\sappVersion *= *"\(.*\)"$/\1/p' server/main.go)
+          test "$ts_ver" = "$go_ver" || { echo "version drift: ts=$ts_ver go=$go_ver"; exit 1; }

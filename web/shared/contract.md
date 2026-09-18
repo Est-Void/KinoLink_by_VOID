@@ -27,9 +27,13 @@ interface MovieRef {
 
 ## Параметр v
 
-- `v` — версия юзерскрипта (`1.0.0`, semver). Плеер сравнивает со своей
-  `REQUIRED_SCRIPT_VERSION`: `v < required` → тост «обнови скрипт».
-- Отсутствие `v` = очень старый скрипт → тот же тост.
+- `v` — версия юзерскрипта из `web/shared/version.ts` (`VERSION`, в этой ветке
+  всегда `x.y.z-dev`). Плеер сравнивает через `isOutdated(v, VERSION)`.
+- `v` отсутствует/мусор/старше → тост «обнови скрипт» со ссылкой на
+  `userscript/kinolink.user.js` в репозитории. Новer/равна → молча.
+- `-dev` считается старше релиза с теми же цифрами (`2.0.0-dev < 2.0.0`).
+- `appVersion` в `server/main.go` дублирует `VERSION` (Go не импортирует TS);
+  рассинхрон ловит CI (`web.yml`).
 
 ## Поведение плеера
 
@@ -41,8 +45,17 @@ interface MovieRef {
 
 ## Примеры
 
-`{"title":"Дюна","kinopoisk":"...","type":"movie"}` →
-`?m=eyJ0aXRsZSI6ItCU0Y7QvdCwIiwia2lub3BvaXNrIjoiLi4uIiwidHlwZSI6Im1vdmllIn0`
+`{"title":"Дюна","kinopoisk":"4094466","type":"movie"}` →
+`?m=eyJ0aXRsZSI6ItCU0Y7QvdCwIiwidHlwZSI6Im1vdmllIiwia2lub3BvaXNrIjoiNDA5NDQ2NiJ9`
+
+Пример закреплён тестом `contract example` в `movie.test.ts`: если формат
+кодирования изменится, тест упадёт вместе с контрактом.
 
 Реализация: `web/shared/movie.ts` (ноль зависимостей, shared между
-userscript и player). Тесты: `web/shared/movie.test.ts` (`node --test`).
+userscript и player). Тесты: `web/shared/movie.test.ts` (`node --test
+"web/**/*.test.ts"`).
+
+Требования к запуску тестов: Node.js ≥ 22.18 (type stripping включён по
+умолчанию; на 22.6–22.17 нужен флаг `--experimental-strip-types`). Node
+только стирает типы и **не проверяет их** — тесты ловят рантайм-поведение,
+но не ошибки типов.
