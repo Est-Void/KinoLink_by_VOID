@@ -36,8 +36,11 @@ type playersResponse struct {
 // Access — hence Access-Control-Allow-Private-Network.
 // Keep in sync with @match in the userscript.
 var allowedCORSOrigins = map[string]bool{
-	"https://www.kinopoisk.ru": true,
-	"https://hd.kinopoisk.ru":  true,
+	"https://www.kinopoisk.ru":   true,
+	"https://hd.kinopoisk.ru":    true,
+	"https://www.imdb.com":       true,
+	"https://www.themoviedb.org": true,
+	"https://letterboxd.com":     true,
 }
 
 func routes(cfg config, host string, port int) http.Handler {

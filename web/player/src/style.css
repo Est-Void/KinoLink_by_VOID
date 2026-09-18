@@ -1,0 +1,10 @@
+/* Bare functional styles — decoration comes later. */
+body { background: #111; color: #eee; font-family: sans-serif; margin: 0; }
+#app { max-width: 960px; margin: 0 auto; padding: 16px; }
+#title { font-size: 20px; }
+#toast { background: #5a2d00; border: 1px solid #ff9a3c; padding: 10px; margin: 8px 0; }
+#toast a { color: #ffcf99; }
+#sources { display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0; }
+#sources button { background: #222; color: #eee; border: 1px solid #555; padding: 8px 12px; cursor: pointer; }
+#sources button.selected { border-color: #7a2fd0; }
+#content iframe { width: 100%; aspect-ratio: 16 / 9; border: 0; background: #000; }

@@ -16,6 +16,14 @@ jobs:
         with:
           node-version: "22"
       - run: node --test "web/**/*.test.ts"
+      - run: npm install --no-audit --no-fund
+        working-directory: web
+      - run: ./node_modules/.bin/tsc --noEmit -p userscript/tsconfig.json
+        working-directory: web
+      - run: ./node_modules/.bin/tsc --noEmit -p player/tsconfig.json
+        working-directory: web
+      - run: npm run build --workspaces
+        working-directory: web
       # server/main.go cannot import TS, so appVersion duplicates VERSION:
       # fail the build if they drift apart.
       - run: |
