@@ -206,9 +206,9 @@ a:focus {
 	background: var(--color-hover);
 }
 
-/* Slide-in theme list, main-style collapsible sidebar. */
+/* Theme list docked to the player card (not the viewport). */
 #theme-sidebar {
-	position: fixed;
+	position: absolute;
 	z-index: 10;
 	top: 0;
 	left: 0;
@@ -218,7 +218,8 @@ a:focus {
 	flex-direction: column;
 	background: rgba(0, 0, 0, 0.95);
 	border-right: 1px solid var(--color-border);
-	transform: translateX(-100%);
+	border-radius: var(--radius-xl) 0 0 var(--radius-xl);
+	transform: translateX(-102%);
 	transition: transform var(--transition), box-shadow var(--transition);
 }
 
