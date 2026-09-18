@@ -16,7 +16,7 @@
 
 (function() {
 	"use strict";
-	var VERSION = "2.0.4-dev";
+	var VERSION = "2.0.5";
 	function isDomain(host, domain) {
 		return host === domain || host.endsWith(`.${domain}`);
 	}
