@@ -7,18 +7,52 @@ import { logger } from './log.ts';
 
 export const BUTTON_ID = 'kinolink-watch-button';
 
-function kinopoiskAnchor(): Element | null {
-  // v1 approach: sit next to the «Буду смотреть» button.
-  const btn = Array.from(document.querySelectorAll('button')).find(
+function kinopoiskReferenceButton(): HTMLButtonElement | null {
+  // «Буду смотреть» — живая кнопка Кинопоиска рядом с нашей. Копируем её
+  // вычисленные стили, а не классы: CSS-модули КП переименовываются.
+  const found = Array.from(document.querySelectorAll('button')).find(
     (el) => el.getAttribute('title') === 'Буду смотреть',
   );
-  return btn?.parentElement ?? null;
+  return found instanceof HTMLButtonElement ? found : null;
+}
+
+const KP_STYLE_PROPS = [
+  'backgroundColor',
+  'backgroundImage',
+  'color',
+  'border',
+  'borderRadius',
+  'height',
+  'paddingLeft',
+  'paddingRight',
+  'fontSize',
+  'fontWeight',
+  'fontFamily',
+  'letterSpacing',
+  'textTransform',
+] as const;
+
+// Кнопка как у Кинопоиска: та же геометрия и заливка, что у соседней.
+function styleKinopoiskButton(btn: HTMLButtonElement, ref: HTMLButtonElement): void {
+  const computed = getComputedStyle(ref);
+  for (const prop of KP_STYLE_PROPS) {
+    const value = computed[prop];
+    if (value) btn.style[prop] = value;
+  }
+  btn.style.display = 'inline-flex';
+  btn.style.alignItems = 'center';
+  btn.style.justifyContent = 'center';
+  btn.style.gap = '8px';
+  btn.style.marginRight = '8px';
+  btn.style.cursor = 'pointer';
+  btn.style.flexShrink = '0';
 }
 
 function findAnchor(site: Site): { parent: Element; mode: 'before' | 'after' | 'append' } | null {
   switch (site) {
     case 'kinopoisk': {
-      const anchor = kinopoiskAnchor();
+      const ref = kinopoiskReferenceButton();
+      const anchor = ref?.parentElement;
       return anchor ? { parent: anchor, mode: 'before' } : null;
     }
     case 'imdb': {
@@ -60,10 +94,24 @@ export function ensureButton(site: Site, onClick: () => void): void {
   const btn = document.createElement('button');
   btn.id = BUTTON_ID;
   btn.type = 'button';
-  btn.textContent = '▶ Смотреть';
   btn.title = 'Смотреть через KinoLink';
   btn.addEventListener('click', onClick);
 
+  // Кинопоиск: кнопка-близнец соседней (иконка + текст, стили один в один).
+  if (site === 'kinopoisk') {
+    const ref = kinopoiskReferenceButton();
+    if (ref?.parentElement) {
+      btn.innerHTML =
+        '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M7 4.5v15l13-7.5-13-7.5Z" fill="currentColor"/></svg>';
+      btn.appendChild(document.createTextNode('Смотреть'));
+      styleKinopoiskButton(btn, ref);
+      ref.parentElement.before(btn);
+      logger.info('button attached', site);
+      return;
+    }
+  }
+
+  btn.textContent = '▶ Смотреть';
   const anchor = findAnchor(site);
   if (!anchor) {
     logger.warn('no anchor for', site, '— using floating button');

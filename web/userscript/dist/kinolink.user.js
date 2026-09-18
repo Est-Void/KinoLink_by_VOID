@@ -99,13 +99,43 @@
 		error: (...args) => console.error("[KinoLink]", ...args)
 	};
 	var BUTTON_ID = "kinolink-watch-button";
-	function kinopoiskAnchor() {
-		return Array.from(document.querySelectorAll("button")).find((el) => el.getAttribute("title") === "Буду смотреть")?.parentElement ?? null;
+	function kinopoiskReferenceButton() {
+		const found = Array.from(document.querySelectorAll("button")).find((el) => el.getAttribute("title") === "Буду смотреть");
+		return found instanceof HTMLButtonElement ? found : null;
+	}
+	var KP_STYLE_PROPS = [
+		"backgroundColor",
+		"backgroundImage",
+		"color",
+		"border",
+		"borderRadius",
+		"height",
+		"paddingLeft",
+		"paddingRight",
+		"fontSize",
+		"fontWeight",
+		"fontFamily",
+		"letterSpacing",
+		"textTransform"
+	];
+	function styleKinopoiskButton(btn, ref) {
+		const computed = getComputedStyle(ref);
+		for (const prop of KP_STYLE_PROPS) {
+			const value = computed[prop];
+			if (value) btn.style[prop] = value;
+		}
+		btn.style.display = "inline-flex";
+		btn.style.alignItems = "center";
+		btn.style.justifyContent = "center";
+		btn.style.gap = "8px";
+		btn.style.marginRight = "8px";
+		btn.style.cursor = "pointer";
+		btn.style.flexShrink = "0";
 	}
 	function findAnchor(site) {
 		switch (site) {
 			case "kinopoisk": {
-				const anchor = kinopoiskAnchor();
+				const anchor = kinopoiskReferenceButton()?.parentElement;
 				return anchor ? {
 					parent: anchor,
 					mode: "before"
@@ -158,9 +188,20 @@
 		const btn = document.createElement("button");
 		btn.id = BUTTON_ID;
 		btn.type = "button";
-		btn.textContent = "▶ Смотреть";
 		btn.title = "Смотреть через KinoLink";
 		btn.addEventListener("click", onClick);
+		if (site === "kinopoisk") {
+			const ref = kinopoiskReferenceButton();
+			if (ref?.parentElement) {
+				btn.innerHTML = "<svg width=\"20\" height=\"20\" viewBox=\"0 0 24 24\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M7 4.5v15l13-7.5-13-7.5Z\" fill=\"currentColor\"/></svg>";
+				btn.appendChild(document.createTextNode("Смотреть"));
+				styleKinopoiskButton(btn, ref);
+				ref.parentElement.before(btn);
+				logger.info("button attached", site);
+				return;
+			}
+		}
+		btn.textContent = "▶ Смотреть";
 		const anchor = findAnchor(site);
 		if (!anchor) {
 			logger.warn("no anchor for", site, "— using floating button");
