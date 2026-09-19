@@ -16,7 +16,9 @@ import (
 )
 
 const (
-	appName      = "kinolink"
+	appName = "kinolink"
+	// Default for dev builds; release CI overrides it with:
+	// go build -ldflags "-X main.appVersion=<version>".
 	appVersion   = "2.0.4-dev"
 	defaultPort  = 8080
 	proxyTimeout = 8 * time.Second
