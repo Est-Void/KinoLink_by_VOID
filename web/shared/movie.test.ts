@@ -112,4 +112,13 @@ describe('player query', () => {
 	it('missing m yields null movie', () => {
 		assert.equal(parsePlayerQuery('?v=1.0.0').movie, null);
 	});
+
+	it('a corrupted m is distinguishable from a missing one', () => {
+		const missing = parsePlayerQuery('?v=1.0.0');
+		assert.equal(missing.movie, null);
+		assert.equal(missing.movieParam, '');
+		const corrupted = parsePlayerQuery('?m=!!!&v=1.0.0');
+		assert.equal(corrupted.movie, null);
+		assert.equal(corrupted.movieParam, '!!!');
+	});
 });

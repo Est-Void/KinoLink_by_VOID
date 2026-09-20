@@ -10,6 +10,8 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"sync"
+	"time"
 )
 
 type statusResponse struct {
@@ -44,6 +46,68 @@ var allowedCORSOrigins = map[string]bool{
 // allowedCORSSubdomains covers @match entries of the form *://*.domain/…
 var allowedCORSSubdomains = []string{"imdb.com"}
 
+// upstreamHTTPClient is shared across requests so idle TCP/TLS connections to
+// Kinobox mirrors and Wikidata are reused instead of re-handshaked per call.
+var upstreamHTTPClient = &http.Client{Timeout: proxyTimeout}
+
+// upstreamBudget caps the whole upstream phase (TMDB->IMDb resolve + mirror
+// probes) so a slow Wikidata plus slow mirrors cannot hit the server-level
+// WriteTimeout with the response unwritten.
+const upstreamBudget = 20 * time.Second
+
+// playersCacheTTL — how long a successful Kinobox answer is reused. Repeat
+// opens of the same title then skip both the Wikidata resolve and the mirrors.
+const playersCacheTTL = 10 * time.Minute
+
+// playersCacheMax bounds memory: with ~200-entry watchlists and occasional
+// upstream flapping this will never be approached in a local deployment.
+const playersCacheMax = 2048
+
+type playersCache struct {
+	mu      sync.Mutex
+	entries map[string]playersCacheEntry
+}
+
+type playersCacheEntry struct {
+	sources []playerSource
+	expires time.Time
+}
+
+func newPlayersCache() *playersCache {
+	return &playersCache{entries: make(map[string]playersCacheEntry)}
+}
+
+func (c *playersCache) get(key string) ([]playerSource, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	entry, ok := c.entries[key]
+	if !ok {
+		return nil, false
+	}
+	if time.Now().After(entry.expires) {
+		delete(c.entries, key)
+		return nil, false
+	}
+	return entry.sources, true
+}
+
+func (c *playersCache) put(key string, sources []playerSource) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if len(c.entries) >= playersCacheMax {
+		now := time.Now()
+		for k, e := range c.entries {
+			if now.After(e.expires) {
+				delete(c.entries, k)
+			}
+		}
+		if len(c.entries) >= playersCacheMax {
+			c.entries = make(map[string]playersCacheEntry)
+		}
+	}
+	c.entries[key] = playersCacheEntry{sources: sources, expires: time.Now().Add(playersCacheTTL)}
+}
+
 func isAllowedCORSOrigin(origin string) bool {
 	if allowedCORSOrigins[origin] {
 		return true
@@ -62,6 +126,9 @@ func isAllowedCORSOrigin(origin string) bool {
 }
 
 func routes(cfg config, host string, port int) http.Handler {
+	if cfg.cache == nil {
+		cfg.cache = newPlayersCache()
+	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/status", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
@@ -126,12 +193,24 @@ func playersHandler(w http.ResponseWriter, r *http.Request, cfg config) {
 		return
 	}
 
+	// Cache before resolving: a hit skips the Wikidata round-trip too. The key
+	// uses the raw request id (tmdb included, so ?type= stays distinguishable).
+	cacheKey := kind + ":" + id
+	if cfg.cache != nil {
+		if hit, ok := cfg.cache.get(cacheKey); ok {
+			writeJSON(w, http.StatusOK, playersResponse{Data: hit})
+			return
+		}
+	}
+
 	// The Kinobox mirrors only understand kinopoisk/imdb. Resolve TMDB ids
 	// to IMDb via Wikidata so TMDB-sourced opens keep working.
-	client := &http.Client{Timeout: proxyTimeout}
+	client := upstreamHTTPClient
+	ctx, cancel := context.WithTimeout(r.Context(), upstreamBudget)
+	defer cancel()
 	if kind == "tmdb" {
 		seriesFirst := strings.TrimSpace(q.Get("type")) == "series"
-		if imdb, err := resolveImdbFromTmdb(r.Context(), client, wikidataSparqlEndpoint, id, seriesFirst); err == nil {
+		if imdb, err := resolveImdbFromTmdb(ctx, client, wikidataSparqlEndpoint, id, seriesFirst); err == nil {
 			log.Printf("kinolink: resolved tmdb %s -> %s", id, imdb)
 			id, kind = imdb, "imdb"
 		} else {
@@ -151,7 +230,7 @@ func playersHandler(w http.ResponseWriter, r *http.Request, cfg config) {
 			continue
 		}
 		tried++
-		got, err := fetchUpstream(r.Context(), client, base+"/api/players", kind, id)
+		got, err := fetchUpstream(ctx, client, base+"/api/players", kind, id)
 		if err != nil {
 			lastErr = err
 			log.Printf("kinolink: upstream %s failed: %v", base, err)
@@ -180,6 +259,9 @@ func playersHandler(w http.ResponseWriter, r *http.Request, cfg config) {
 	}
 	if sources == nil {
 		sources = []playerSource{}
+	}
+	if cfg.cache != nil {
+		cfg.cache.put(cacheKey, sources)
 	}
 
 	writeJSON(w, http.StatusOK, playersResponse{Data: sources})

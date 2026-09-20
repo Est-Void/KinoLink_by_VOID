@@ -22,6 +22,24 @@ const (
 	coverUserAgent = "Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 Firefox/128.0"
 )
 
+// allowedCoverHosts — CDN allowlist for /api/cover. Every poster the
+// userscript can extract comes from one of these hosts; anything else answers
+// 404, so the endpoint cannot be abused as a general-purpose open image proxy
+// (SSRF is already blocked at dial time by the private-IP dialer).
+var allowedCoverHosts = map[string]bool{
+	"avatars.mds.yandex.net": true, // Kinopoisk posters
+	"st.kp.yandex.net":       true, // Kinopoisk posters (legacy CDN)
+	"image.tmdb.org":         true, // TMDB
+	"media.themoviedb.org":   true, // TMDB page images
+	"m.media-amazon.com":     true, // IMDb posters
+	"a.ltrbxd.com":           true, // Letterboxd posters
+	"s.ltrbxd.com":           true, // Letterboxd static images
+}
+
+func isAllowedCoverHost(host string) bool {
+	return allowedCoverHosts[strings.ToLower(host)]
+}
+
 // coverHTTPClient fetches posters for /api/cover. Its dialer refuses to connect
 // to non-public addresses, which blocks SSRF — including via redirects and DNS
 // rebinding — at connect time rather than at URL-parse time.
@@ -101,7 +119,7 @@ func coverHandler(w http.ResponseWriter, r *http.Request, client *http.Client) {
 		return
 	}
 	target, err := url.Parse(strings.TrimSpace(r.URL.Query().Get("url")))
-	if err != nil || !isHTTPURL(target) {
+	if err != nil || !isHTTPURL(target) || !isAllowedCoverHost(target.Hostname()) {
 		http.NotFound(w, r)
 		return
 	}

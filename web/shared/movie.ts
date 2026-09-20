@@ -116,11 +116,18 @@ export function buildPlayerQuery(ref: MovieRef, scriptVersion: string): string {
 	return `?${params.toString()}`;
 }
 
-/** Parse location.search of the player page. */
-export function parsePlayerQuery(search: string): { movie: MovieRef | null; scriptVersion: string } {
+/** Parse location.search of the player page. movieParam is the raw ?m= value
+ *  ('' when absent), so a corrupted link is distinguishable from a bare open. */
+export function parsePlayerQuery(search: string): {
+	movie: MovieRef | null;
+	scriptVersion: string;
+	movieParam: string;
+} {
 	const params = new URLSearchParams(search.startsWith('?') ? search : `?${search}`);
+	const movieParam = params.get('m') ?? '';
 	return {
-		movie: decodeMovieRef(params.get('m') ?? ''),
+		movie: decodeMovieRef(movieParam),
 		scriptVersion: params.get('v') ?? '',
+		movieParam,
 	};
 }

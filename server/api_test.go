@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 )
 
@@ -119,6 +120,37 @@ func TestPlayersNoUpstreamConfigured(t *testing.T) {
 		rec, httptest.NewRequest(http.MethodGet, "/api/players?kinopoisk=1", nil))
 	if rec.Code != http.StatusBadGateway {
 		t.Fatalf("status = %d, want 502", rec.Code)
+	}
+}
+
+func TestPlayersCachedSecondRequestSkipsUpstream(t *testing.T) {
+	var hits int32
+	up := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&hits, 1)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"data":[{"type":"Alloha","iframeUrl":"https://example.com/a"}]}`))
+	}))
+	defer up.Close()
+
+	h := testRoutes(up.URL, t.TempDir())
+	path := "/api/players?kinopoisk=535341"
+
+	first := httptest.NewRecorder()
+	h.ServeHTTP(first, httptest.NewRequest(http.MethodGet, path, nil))
+	if first.Code != http.StatusOK {
+		t.Fatalf("first status = %d, want 200", first.Code)
+	}
+
+	second := httptest.NewRecorder()
+	h.ServeHTTP(second, httptest.NewRequest(http.MethodGet, path, nil))
+	if second.Code != http.StatusOK {
+		t.Fatalf("second status = %d, want 200", second.Code)
+	}
+	if got := atomic.LoadInt32(&hits); got != 1 {
+		t.Fatalf("upstream hits = %d, want 1 (second answer must come from cache)", got)
+	}
+	if first.Body.String() != second.Body.String() {
+		t.Fatalf("cached body differs: %s vs %s", first.Body.String(), second.Body.String())
 	}
 }
 

@@ -604,6 +604,21 @@ a:focus {
 	color: var(--color-grey);
 }
 
+/* Pulsing "Загружаю источники…" state shown while /api/players is pending. */
+#hint.loading {
+	animation: hint-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes hint-pulse {
+	0%,
+	100% {
+		opacity: 0.4;
+	}
+	50% {
+		opacity: 1;
+	}
+}
+
 #sources {
 	position: relative;
 	display: flex;

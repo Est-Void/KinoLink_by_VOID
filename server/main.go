@@ -31,6 +31,9 @@ type config struct {
 	staticDir   string
 	kinobox     string
 	healthcheck bool
+	// cache memoizes successful /api/players answers; routes() fills it in
+	// when zero (keeps direct handler calls in tests cache-free).
+	cache *playersCache
 }
 
 func main() {
@@ -77,10 +80,11 @@ func run() error {
 	}
 
 	srv := &http.Server{
-		Handler:      routes(cfg, host, port),
-		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 30 * time.Second,
-		IdleTimeout:  60 * time.Second,
+		Handler:           routes(cfg, host, port),
+		ReadHeaderTimeout: 5 * time.Second, // slowloris guard
+		ReadTimeout:       15 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       60 * time.Second,
 	}
 
 	go func() {

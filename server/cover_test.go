@@ -48,8 +48,8 @@ func TestCoverProxyServesImage(t *testing.T) {
 	defer up.Close()
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/api/cover?url="+url.QueryEscape(up.URL+"/poster.jpg"), nil)
-	coverHandler(rec, req, up.Client())
+	req := httptest.NewRequest(http.MethodGet, "/api/cover?url="+url.QueryEscape("https://image.tmdb.org/t/p/w600/poster.jpg"), nil)
+	coverHandler(rec, req, allowlistClient(t, up))
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", rec.Code)
@@ -70,8 +70,8 @@ func TestCoverProxyRejectsNonImage(t *testing.T) {
 	defer up.Close()
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/api/cover?url="+url.QueryEscape(up.URL), nil)
-	coverHandler(rec, req, up.Client())
+	req := httptest.NewRequest(http.MethodGet, "/api/cover?url="+url.QueryEscape("https://image.tmdb.org/page.html"), nil)
+	coverHandler(rec, req, allowlistClient(t, up))
 
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("status = %d, want 404", rec.Code)
@@ -86,6 +86,65 @@ func TestCoverProxyRejectsBadTarget(t *testing.T) {
 		if rec.Code != http.StatusNotFound {
 			t.Errorf("url %q: status = %d, want 404", raw, rec.Code)
 		}
+	}
+}
+
+// roundTripperFunc adapts a function to http.RoundTripper.
+type roundTripperFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripperFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return f(req)
+}
+
+// allowlistClient serves every request from the test upstream, so handler
+// tests can exercise the real host allowlist with allowed CDN targets.
+func allowlistClient(t *testing.T, up *httptest.Server) *http.Client {
+	t.Helper()
+	target, err := url.Parse(up.URL)
+	if err != nil {
+		t.Fatalf("parse upstream url: %v", err)
+	}
+	return &http.Client{Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+		req.URL.Scheme = target.Scheme
+		req.URL.Host = target.Host
+		return http.DefaultTransport.RoundTrip(req)
+	})}
+}
+
+func TestIsAllowedCoverHost(t *testing.T) {
+	for _, host := range []string{
+		"avatars.mds.yandex.net", "st.kp.yandex.net",
+		"image.tmdb.org", "media.themoviedb.org",
+		"m.media-amazon.com", "a.ltrbxd.com", "s.ltrbxd.com",
+		"IMAGE.TMDB.ORG", // case-insensitive
+	} {
+		if !isAllowedCoverHost(host) {
+			t.Errorf("isAllowedCoverHost(%q) = false, want true", host)
+		}
+	}
+	for _, host := range []string{
+		"", "evil.example", "localhost", "127.0.0.1",
+		"image.tmdb.org.evil.example", // suffix spoofing
+		"sub.image.tmdb.org",          // no subdomains of allowlisted hosts
+	} {
+		if isAllowedCoverHost(host) {
+			t.Errorf("isAllowedCoverHost(%q) = true, want false", host)
+		}
+	}
+}
+
+// The upstream would happily serve the image, so a 200 here would mean the
+// allowlist never ran; 404 proves the host check happens before any fetch.
+func TestCoverProxyRejectsUnknownHost(t *testing.T) {
+	up := imageUpstream(t, "image/jpeg", "x")
+	defer up.Close()
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/cover?url="+url.QueryEscape("https://evil.example/poster.jpg"), nil)
+	coverHandler(rec, req, allowlistClient(t, up))
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404 for non-allowlisted host", rec.Code)
 	}
 }
 

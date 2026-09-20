@@ -5,6 +5,7 @@ __pycache__/
 *.pyc
 kinolink
 server/kinolink
+server/server
 web/player/dist/
 web/userscript/dist/*
 !web/userscript/dist/kinolink.user.js

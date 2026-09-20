@@ -5,9 +5,15 @@ import { buildPlayerQuery, parseMovieRef, parsePlayerQuery } from '../../shared/
 import type { MovieRef } from '../../shared/movie.ts';
 import { coverSrc } from '../../shared/cover.ts';
 import { VERSION, isOutdated } from '../../shared/version.ts';
+import { detectLang, getStrings } from './i18n.ts';
 
 const SCRIPT_UPDATE_URL =
   'https://github.com/Est-Void/KinoLink_by_VOID/raw/refs/heads/main/web/userscript/dist/kinolink.user.js';
+
+// UI language detected once; index.html ships Russian defaults, which
+// applyStaticTexts() replaces for English locales at startup.
+const LANG = detectLang(navigator.language);
+const L = getStrings(LANG);
 
 interface Source {
   type: string;
@@ -76,7 +82,7 @@ function renderWatchedMovies(): void {
   if (watched.length === 0) {
     const empty = document.createElement('div');
     empty.className = 'watched-empty';
-    empty.textContent = 'Тут пока пусто';
+    empty.textContent = L.emptyHistory;
     list.appendChild(empty);
     return;
   }
@@ -95,8 +101,8 @@ function renderWatchedMovies(): void {
     const coverBtn = document.createElement('button');
     coverBtn.type = 'button';
     coverBtn.className = 'cover-btn';
-    coverBtn.title = 'Открыть';
-    coverBtn.setAttribute('aria-label', `Открыть ${movie.title}`);
+    coverBtn.title = L.open;
+    coverBtn.setAttribute('aria-label', L.openAria(movie.title));
     const cover = movie.cover ? coverSrc(movie.cover, location.origin) : '';
     if (cover) {
       const img = document.createElement('img');
@@ -117,7 +123,7 @@ function renderWatchedMovies(): void {
     const info = document.createElement('button');
     info.type = 'button';
     info.className = 'info';
-    info.title = 'Открыть';
+    info.title = L.open;
     const title = document.createElement('span');
     title.className = 'row title';
     title.textContent = movie.title;
@@ -133,8 +139,8 @@ function renderWatchedMovies(): void {
     const del = document.createElement('button');
     del.type = 'button';
     del.className = 'delete-btn';
-    del.title = 'Удалить из списка';
-    del.setAttribute('aria-label', `Удалить ${movie.title}`);
+    del.title = L.remove;
+    del.setAttribute('aria-label', L.removeAria(movie.title));
     del.textContent = '×';
     del.addEventListener('click', (event) => {
       event.stopPropagation();
@@ -225,13 +231,36 @@ function el<T extends HTMLElement>(id: string): T {
   return node as T;
 }
 
-function showHint(text: string): void {
+function showHint(text: string, loading = false): void {
   const frame = el('frame');
   frame.innerHTML = '';
   const p = document.createElement('p');
   p.id = 'hint';
   p.textContent = text;
+  if (loading) p.classList.add('loading');
   frame.appendChild(p);
+}
+
+// index.html ships Russian defaults; re-apply the visible strings for the
+// detected language (English users see a brief flash — fine for a local tool).
+function applyStaticTexts(): void {
+  document.documentElement.lang = LANG;
+  const setLabel = (selector: string, label: string, title?: string): void => {
+    const node = document.querySelector(selector);
+    if (!node) return;
+    node.setAttribute('aria-label', label);
+    if (title) node.setAttribute('title', title);
+  };
+  setLabel('#watched-toggle', L.watchedLabel, L.watchedLabel);
+  setLabel('#theme-toggle', L.themesLabel, L.themesLabel);
+  setLabel('#sort-toggle', L.sortAria, L.sortAria);
+  setLabel('#watched-close', L.closeAria);
+  setLabel('#theme-close', L.closeAria);
+  setLabel('#sources', L.sourcesAria);
+  const watchedHead = document.querySelector('#watched-sidebar .sidebar-head-start span');
+  if (watchedHead) watchedHead.textContent = L.watchedLabel;
+  const themeHead = document.querySelector('#theme-sidebar .sidebar-head > span');
+  if (themeHead) themeHead.textContent = L.themesLabel;
 }
 
 // Always shows the installed script version; when it is older than the
@@ -258,6 +287,12 @@ function selectSource(source: Source): void {
   const iframe = document.createElement('iframe');
   iframe.src = source.iframeUrl;
   iframe.allowFullscreen = true;
+  iframe.allow = 'autoplay; fullscreen; encrypted-media; picture-in-picture';
+  // Never leak the movie-site referer to third-party players.
+  iframe.referrerPolicy = 'no-referrer';
+  // Blocks popups and top-level navigation (ad redirects) inside embeds;
+  // allow-same-origin keeps the embed's own storage/cookies working.
+  iframe.sandbox.add('allow-scripts', 'allow-same-origin', 'allow-forms', 'allow-presentation');
   frame.appendChild(iframe);
 }
 
@@ -305,8 +340,19 @@ function renderSources(sources: Source[]): void {
   window.addEventListener('resize', updateIndicator);
 }
 
+// A source pointing back at our own origin is never a real player: skip it so
+// a compromised upstream cannot run same-origin script inside the sandbox.
+function isSameOriginSource(raw: string): boolean {
+  try {
+    return new URL(raw, location.href).origin === location.origin;
+  } catch {
+    return true; // unparsable — dropped, the browser could not load it anyway
+  }
+}
+
 async function init(): Promise<void> {
   renderThemeOptions();
+  applyStaticTexts();
 
   el('theme-toggle').addEventListener('click', () => toggleThemeSidebar());
   el('theme-close').addEventListener('click', () => toggleThemeSidebar(false));
@@ -333,10 +379,10 @@ async function init(): Promise<void> {
     renderWatchedMovies();
   });
 
-  const { movie, scriptVersion } = parsePlayerQuery(location.search);
+  const { movie, scriptVersion, movieParam } = parsePlayerQuery(location.search);
   renderVersion(scriptVersion);
   if (!movie) {
-    showHint('Откройте страницу фильма и нажмите «Смотреть».');
+    showHint(movieParam ? L.corrupted : L.idle);
     return;
   }
   currentMovie = movie;
@@ -353,19 +399,22 @@ async function init(): Promise<void> {
   // Hints the server which Wikidata property to try first (TMDB ids collide
   // across movies and series).
   if (!movie.kinopoisk && !movie.imdb && movie.type) params.set('type', movie.type);
+  showHint(L.loading, true);
   let sources: Source[];
   try {
     const res = await fetch(`/api/players?${params.toString()}`);
     if (!res.ok) throw new Error(`status ${res.status}`);
     const body = (await res.json()) as { data?: Source[] };
-    sources = (body.data ?? []).filter((s) => s?.type && s?.iframeUrl);
+    sources = (body.data ?? []).filter(
+      (s) => s?.type && s?.iframeUrl && !isSameOriginSource(s.iframeUrl),
+    );
   } catch (error) {
     console.error('[KinoLink player]', error);
-    showHint('Источники временно недоступны. Попробуйте обновить страницу.');
+    showHint(L.unavailable);
     return;
   }
   if (sources.length === 0) {
-    showHint('Источник не найден.');
+    showHint(L.notFound);
     return;
   }
   renderSources(sources);
