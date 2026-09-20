@@ -16,6 +16,12 @@ export default defineConfig({
         version: VERSION,
         description: 'KinoLink v2 — watch button for Kinopoisk, IMDb, TMDB, Letterboxd',
         author: 'VOID',
+        license: 'MIT',
+        homepageURL: 'https://github.com/Est-Void/KinoLink_by_VOID',
+        supportURL: 'https://github.com/Est-Void/KinoLink_by_VOID/issues',
+        // The button injects into the top page only; inside site iframes it
+        // would only waste MutationObserver ticks and risk duplicate buttons.
+        noframes: true,
         match: [
           '*://www.kinopoisk.ru/*',
           '*://hd.kinopoisk.ru/*',

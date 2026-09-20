@@ -1,9 +1,12 @@
 // ==UserScript==
 // @name         KinoLink by VOID
 // @namespace    kinolink
-// @version      2.0.5
+// @version      2.0.6-dev
 // @author       VOID
 // @description  KinoLink v2 — watch button for Kinopoisk, IMDb, TMDB, Letterboxd
+// @license      MIT
+// @homepageURL  https://github.com/Est-Void/KinoLink_by_VOID
+// @supportURL   https://github.com/Est-Void/KinoLink_by_VOID/issues
 // @downloadURL  https://github.com/Est-Void/KinoLink_by_VOID/raw/refs/heads/main/web/userscript/dist/kinolink.user.js
 // @updateURL    https://github.com/Est-Void/KinoLink_by_VOID/raw/refs/heads/main/web/userscript/dist/kinolink.user.js
 // @match        *://www.kinopoisk.ru/*
@@ -12,11 +15,12 @@
 // @match        *://www.themoviedb.org/movie/*
 // @match        *://www.themoviedb.org/tv/*
 // @match        *://letterboxd.com/film/*
+// @noframes
 // ==/UserScript==
 
 (function() {
 	"use strict";
-	var VERSION = "2.0.5";
+	var VERSION = "2.0.6-dev";
 	function isDomain(host, domain) {
 		return host === domain || host.endsWith(`.${domain}`);
 	}
@@ -342,8 +346,8 @@
 		].join(";");
 	}
 	function ensureButton(site, onClick) {
-		if (document.getElementById("kinolink-watch-button")) return;
 		currentOnClick = onClick;
+		if (document.getElementById("kinolink-watch-button")) return;
 		if (site === "kinopoisk") {
 			injectBreathStyle();
 			const ref = kinopoiskReferenceButton();

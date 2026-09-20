@@ -4,8 +4,7 @@
 
 FROM golang:1.24-alpine AS builder
 WORKDIR /src/server
-COPY server/go.mod ./
-RUN go mod download || true
+# No external dependencies (see server/go.mod), so no go mod download step.
 COPY server/ ./
 RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/kinolink .
 

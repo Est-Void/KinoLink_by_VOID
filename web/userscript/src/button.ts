@@ -215,8 +215,10 @@ function styleFallbackButton(btn: HTMLButtonElement, floating: boolean): void {
 }
 
 export function ensureButton(site: Site, onClick: () => void): void {
-  if (document.getElementById(BUTTON_ID)) return;
+  // Refresh the handler BEFORE the early return: on SPA navigation the button
+  // already exists, and its click must open the latest ref, not the first one.
   currentOnClick = onClick;
+  if (document.getElementById(BUTTON_ID)) return;
 
   // Кинопоиск: каскад десктопный ряд -> заголовок (мобильный лендинг) ->
   // общий фолбэк. Каждый шаг логируется, чтобы по консоли было видно,

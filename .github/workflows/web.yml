@@ -16,7 +16,7 @@ jobs:
         with:
           node-version: "22"
       - run: node --test "web/**/*.test.ts"
-      - run: npm install --no-audit --no-fund
+      - run: npm ci --no-audit --no-fund
         working-directory: web
       - run: ./node_modules/.bin/tsc --noEmit -p userscript/tsconfig.json
         working-directory: web

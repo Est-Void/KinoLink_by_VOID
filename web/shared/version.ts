@@ -3,7 +3,11 @@
 // Branch rule: versions here are always x.y.z-dev (see contract.md).
 // Keep in sync with appVersion in server/main.go (checked in CI).
 
-export const VERSION = '2.0.4-dev';
+// 2.0.6-dev: rebuild of the committed dist (2.0.5) with the full userscript
+// header (@noframes, @license, homepage/support) — the bump keeps Tampermonkey
+// auto-update flowing for users already on 2.0.5 (2.0.4-dev would be older).
+
+export const VERSION = '2.0.6-dev';
 
 interface Parsed {
 	numbers: number[];

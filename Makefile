@@ -16,7 +16,7 @@ build:
 	cd server && CGO_ENABLED=0 go build -o ../kinolink .
 
 web-build:
-	cd web && npm install --no-audit --no-fund && npm run build --workspaces
+	cd web && npm ci --no-audit --no-fund && npm run build --workspaces
 
 docker-build: web-build
 	docker build -t kinolink:dev .
