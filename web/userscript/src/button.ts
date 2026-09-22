@@ -123,10 +123,10 @@ function attachImdbButton(hero: Element): void {
   hero.after(btn);
 }
 
-// Netflix: пилюля в фирменном стиле KinoLink (фиолетовый градиент, рамка и
-// «дыхание» — как на Кинопоиске), красный треугольник — узнаваемый акцент
-// Netflix, чтобы кнопка не выглядела чужой на их вёрстке.
-function attachNetflixButton(after: Element): void {
+// Netflix и Rotten Tomatoes: пилюля в фирменном стиле KinoLink (фиолетовый
+// градиент, рамка и «дыхание» — как на Кинопоиске), красный треугольник —
+// узнаваемый акцент сайта, чтобы кнопка не выглядела чужой на их вёрстке.
+function attachBrandPillButton(after: Element, accent: string): void {
   injectBreathStyle();
   const btn = makeButton();
   btn.style.cssText = [
@@ -143,7 +143,7 @@ function attachNetflixButton(after: Element): void {
     'border-radius:999px',
     'cursor:pointer',
   ].join(';');
-  btn.innerHTML = playSvg(16, '#e50914');
+  btn.innerHTML = playSvg(16, accent);
   btn.appendChild(document.createTextNode('Смотреть'));
   after.after(btn);
 }
@@ -313,7 +313,7 @@ export function ensureButton(site: Site, onClick: () => void): void {
     // hashed, so the h1 anchor is the most stable one available.
     const heading = document.querySelector('main h1, h1');
     if (heading) {
-      attachNetflixButton(heading);
+      attachBrandPillButton(heading, '#e50914'); // red Netflix accent
       logger.info('anchor: netflix-h1');
       return;
     }
@@ -322,7 +322,7 @@ export function ensureButton(site: Site, onClick: () => void): void {
   if (site === 'rottentomatoes') {
     const heading = document.querySelector('main h1, h1');
     if (heading) {
-      attachTmdbButton(heading);
+      attachBrandPillButton(heading, '#fa320a'); // tomato red accent
       logger.info('anchor: rt-h1');
       return;
     }

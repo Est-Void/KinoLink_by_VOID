@@ -296,7 +296,7 @@
 		btn.appendChild(document.createTextNode("Смотреть"));
 		hero.after(btn);
 	}
-	function attachNetflixButton(after) {
+	function attachBrandPillButton(after, accent) {
 		injectBreathStyle();
 		const btn = makeButton();
 		btn.style.cssText = [
@@ -313,7 +313,7 @@
 			"border-radius:999px",
 			"cursor:pointer"
 		].join(";");
-		btn.innerHTML = playSvg(16, "#e50914");
+		btn.innerHTML = playSvg(16, accent);
 		btn.appendChild(document.createTextNode("Смотреть"));
 		after.after(btn);
 	}
@@ -462,7 +462,7 @@
 		if (site === "netflix") {
 			const heading = document.querySelector("main h1, h1");
 			if (heading) {
-				attachNetflixButton(heading);
+				attachBrandPillButton(heading, "#e50914");
 				logger.info("anchor: netflix-h1");
 				return;
 			}
@@ -470,7 +470,7 @@
 		if (site === "rottentomatoes") {
 			const heading = document.querySelector("main h1, h1");
 			if (heading) {
-				attachTmdbButton(heading);
+				attachBrandPillButton(heading, "#fa320a");
 				logger.info("anchor: rt-h1");
 				return;
 			}
