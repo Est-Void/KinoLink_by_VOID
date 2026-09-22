@@ -297,6 +297,7 @@
 		hero.after(btn);
 	}
 	function attachNetflixButton(after) {
+		injectBreathStyle();
 		const btn = makeButton();
 		btn.style.cssText = [
 			"display:inline-flex",
@@ -307,12 +308,12 @@
 			"font-size:15px",
 			"font-weight:700",
 			"color:#fff",
-			"background:#e50914",
-			"border:none",
+			"background:linear-gradient(45deg, #2b0a45 0%, #000000 100%)",
+			"border:1px solid #7a2fd0",
 			"border-radius:999px",
 			"cursor:pointer"
 		].join(";");
-		btn.innerHTML = playSvg(16, "#ffffff");
+		btn.innerHTML = playSvg(16, "#e50914");
 		btn.appendChild(document.createTextNode("Смотреть"));
 		after.after(btn);
 	}

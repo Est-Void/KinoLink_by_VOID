@@ -123,8 +123,11 @@ function attachImdbButton(hero: Element): void {
   hero.after(btn);
 }
 
-// Netflix: фирменная красная пилюля под заголовком тайтла.
+// Netflix: пилюля в фирменном стиле KinoLink (фиолетовый градиент, рамка и
+// «дыхание» — как на Кинопоиске), красный треугольник — узнаваемый акцент
+// Netflix, чтобы кнопка не выглядела чужой на их вёрстке.
 function attachNetflixButton(after: Element): void {
+  injectBreathStyle();
   const btn = makeButton();
   btn.style.cssText = [
     'display:inline-flex',
@@ -135,12 +138,12 @@ function attachNetflixButton(after: Element): void {
     'font-size:15px',
     'font-weight:700',
     'color:#fff',
-    'background:#e50914',
-    'border:none',
+    'background:linear-gradient(45deg, #2b0a45 0%, #000000 100%)',
+    'border:1px solid #7a2fd0',
     'border-radius:999px',
     'cursor:pointer',
   ].join(';');
-  btn.innerHTML = playSvg(16, '#ffffff');
+  btn.innerHTML = playSvg(16, '#e50914');
   btn.appendChild(document.createTextNode('Смотреть'));
   after.after(btn);
 }
