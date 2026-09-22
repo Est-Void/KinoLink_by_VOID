@@ -51,6 +51,42 @@ func TestResolveImdbFromTmdbEmpty(t *testing.T) {
 	}
 }
 
+func TestResolveImdbFromNetflix(t *testing.T) {
+	up := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/sparql-results+json")
+		query := r.URL.Query().Get("query")
+		if !strings.Contains(query, "P1874") || !strings.Contains(query, `"80230325"`) {
+			t.Errorf("unexpected sparql query: %s", query)
+		}
+		fmt.Fprintf(w, `{"results":{"bindings":[{"imdb":{"value":"tt8936482"}}]}}`)
+	}))
+	defer up.Close()
+
+	client := &http.Client{Timeout: 5 * time.Second}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	got, err := resolveImdbFromNetflix(ctx, client, up.URL, "80230325")
+	if err != nil || got != "tt8936482" {
+		t.Fatalf("got %q, err %v", got, err)
+	}
+}
+
+func TestResolveImdbFromNetflixEmpty(t *testing.T) {
+	up := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"results":{"bindings":[]}}`))
+	}))
+	defer up.Close()
+
+	client := &http.Client{Timeout: 5 * time.Second}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	if _, err := resolveImdbFromNetflix(ctx, client, up.URL, "1"); err == nil {
+		t.Fatal("expected error for empty bindings")
+	}
+}
+
 func TestPickIDValidation(t *testing.T) {
 	cases := []struct {
 		query    string
@@ -64,6 +100,8 @@ func TestPickIDValidation(t *testing.T) {
 		{"imdb=123", "", ""},
 		{"tmdb=438631", "438631", "tmdb"},
 		{"tmdb=abc", "", ""},
+		{"netflix=81145640", "81145640", "netflix"},
+		{"netflix=nf811", "", ""},
 		{"kinopoisk=1&imdb=tt2&tmdb=3", "1", "kinopoisk"},
 		{"foo=bar", "", ""},
 	}

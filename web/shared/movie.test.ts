@@ -16,6 +16,15 @@ describe('parseMovieRef', () => {
 		);
 	});
 
+	it('accepts a netflix-only ref', () => {
+		assert.deepEqual(parseMovieRef({ title: 'Экстракция', netflix: '80230325' }), {
+			title: 'Экстракция',
+			type: 'movie',
+			netflix: '80230325',
+		});
+		assert.equal(parseMovieRef({ title: 'A', netflix: 'abc' }), null);
+	});
+
 	it('defaults type to movie', () => {
 		assert.equal(parseMovieRef({ title: 'A', imdb: 'tt0111161' })?.type, 'movie');
 	});

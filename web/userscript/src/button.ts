@@ -123,6 +123,28 @@ function attachImdbButton(hero: Element): void {
   hero.after(btn);
 }
 
+// Netflix: фирменная красная пилюля под заголовком тайтла.
+function attachNetflixButton(after: Element): void {
+  const btn = makeButton();
+  btn.style.cssText = [
+    'display:inline-flex',
+    'align-items:center',
+    'gap:8px',
+    'margin:12px 0',
+    'padding:10px 20px',
+    'font-size:15px',
+    'font-weight:700',
+    'color:#fff',
+    'background:#e50914',
+    'border:none',
+    'border-radius:999px',
+    'cursor:pointer',
+  ].join(';');
+  btn.innerHTML = playSvg(16, '#ffffff');
+  btn.appendChild(document.createTextNode('Смотреть'));
+  after.after(btn);
+}
+
 // TMDB: пилюля как «What's your Vibe?» рядом с ней.
 function attachTmdbButton(after: Element): void {
   const btn = makeButton();
@@ -279,6 +301,26 @@ export function ensureButton(site: Site, onClick: () => void): void {
     if (details) {
       attachLetterboxdButton(details);
       logger.info('anchor: lb-details');
+      return;
+    }
+  }
+
+  if (site === 'netflix') {
+    // Netflix title page has a single h1 with the title; DOM classes are
+    // hashed, so the h1 anchor is the most stable one available.
+    const heading = document.querySelector('main h1, h1');
+    if (heading) {
+      attachNetflixButton(heading);
+      logger.info('anchor: netflix-h1');
+      return;
+    }
+  }
+
+  if (site === 'rottentomatoes') {
+    const heading = document.querySelector('main h1, h1');
+    if (heading) {
+      attachTmdbButton(heading);
+      logger.info('anchor: rt-h1');
       return;
     }
   }

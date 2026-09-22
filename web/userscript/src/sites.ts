@@ -2,13 +2,14 @@
 // defaults happen centrally in shared parseMovieRef(). Null = not a
 // movie page (or title not readable yet) — no button is shown.
 
-export type Site = 'kinopoisk' | 'imdb' | 'tmdb' | 'letterboxd';
+export type Site = 'kinopoisk' | 'imdb' | 'tmdb' | 'letterboxd' | 'netflix' | 'rottentomatoes';
 
 export interface RawRef {
   title: string;
   kinopoisk?: string;
   imdb?: string;
   tmdb?: string;
+  netflix?: string;
   type?: 'movie' | 'series';
   cover?: string;
   year?: string;
@@ -26,6 +27,8 @@ export function siteFor(host: string, path: string): Site | null {
   if (isDomain(host, 'imdb.com') && path.startsWith('/title/tt')) return 'imdb';
   if (isDomain(host, 'themoviedb.org') && /^\/(movie|tv)\//.test(path)) return 'tmdb';
   if (isDomain(host, 'letterboxd.com') && path.startsWith('/film/')) return 'letterboxd';
+  if (isDomain(host, 'netflix.com') && /^\/title\/\d+/.test(path)) return 'netflix';
+  if (isDomain(host, 'rottentomatoes.com') && /^\/(m|tv)\//.test(path)) return 'rottentomatoes';
   return null;
 }
 
@@ -184,18 +187,63 @@ function extractLetterboxd(): RawRef | null {
   const title = ogTitle();
   if (!title) return null;
   const cover = pageCover(readJsonLd().image);
+  const ids = idsFromLinks();
+  if (ids.imdb || ids.tmdb) return { ...ids, title, cover };
+  return null;
+}
+
+// Исходящие ссылки страницы как источник imdb/tmdb id (Letterboxd, RT).
+function idsFromLinks(): { imdb?: string; tmdb?: string } {
   const links = Array.from(document.querySelectorAll('a[href]'));
   const imdb = links
     .find((a) => /imdb\.com\/title\/tt\d+/.test(a.getAttribute('href') ?? ''))
     ?.getAttribute('href')
     ?.match(/\/title\/(tt\d+)/)?.[1];
-  if (imdb) return { imdb, title, cover };
+  if (imdb) return { imdb };
   const tmdb = links
     .find((a) => /themoviedb\.org\/(movie|tv)\/\d+/.test(a.getAttribute('href') ?? ''))
     ?.getAttribute('href')
     ?.match(/\/(?:movie|tv)\/(\d+)/)?.[1];
-  if (tmdb) return { tmdb, title, cover };
-  return null;
+  return tmdb ? { tmdb } : {};
+}
+
+// Netflix: og:title + releaseYear/videoType из встроенного JSON. Классы DOM
+// хешированы, данные лежат в react/falcor-скриптах — сканируем HTML.
+function extractNetflix(): RawRef | null {
+  const id = location.pathname.match(/^\/title\/(\d+)/)?.[1];
+  if (!id) return null;
+  let title = ogTitle();
+  if (!title) return null;
+  title = title
+    .replace(/^Watch\s+/i, '')
+    .replace(/\s*[–|]\s*Netflix\s*$/i, '')
+    .trim();
+  if (!title) return null;
+  const html = document.documentElement?.innerHTML ?? '';
+  const year = html.match(/"releaseYear":\s*{\s*"year":\s*(\d{4})/)?.[1];
+  const videoType = html.match(/"videoType":\s*"(movie|show)"/)?.[1];
+  return {
+    netflix: id,
+    title,
+    type: videoType === 'show' ? 'series' : 'movie',
+    year,
+  };
+}
+
+// Rotten Tomatoes: тип из пути, id — из ссылок на IMDb/TMDB в инфоблоке.
+function extractRottentomatoes(): RawRef | null {
+  const match = location.pathname.match(/^\/(m|tv)\/[a-z0-9_]+/i);
+  if (!match) return null;
+  let title = ogTitle();
+  if (!title) return null;
+  title = title.replace(/\s*[-–|]\s*Rotten Tomatoes\s*$/i, '').trim();
+  if (!title) return null;
+  return {
+    ...idsFromLinks(),
+    title,
+    type: match[1] === 'tv' ? 'series' : 'movie',
+    cover: pageCover(readJsonLd().image),
+  };
 }
 
 export const extractors: Record<Site, () => RawRef | null> = {
@@ -203,4 +251,6 @@ export const extractors: Record<Site, () => RawRef | null> = {
   imdb: extractImdb,
   tmdb: extractTmdb,
   letterboxd: extractLetterboxd,
+  netflix: extractNetflix,
+  rottentomatoes: extractRottentomatoes,
 };

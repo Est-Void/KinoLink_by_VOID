@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -11,7 +12,24 @@ import (
 )
 
 func testRoutes(kinobox, staticDir string) http.Handler {
-	return routes(config{kinobox: kinobox, staticDir: staticDir}, "127.0.0.1", 8080)
+	return routes(config{
+		kinobox:   kinobox,
+		staticDir: staticDir,
+		wikidata:  mockWikidataURL(),
+	}, "127.0.0.1", 8080)
+}
+
+func testRoutesWithWikidata(kinobox, wikidata, staticDir string) http.Handler {
+	return routes(config{kinobox: kinobox, wikidata: wikidata, staticDir: staticDir}, "127.0.0.1", 8080)
+}
+
+// mockWikidataURL answers every SPARQL query with empty bindings, so the
+// tests never touch the real Wikidata endpoint.
+func mockWikidataURL() string {
+	up := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"results":{"bindings":[]}}`))
+	}))
+	return up.URL
 }
 
 func TestStatus(t *testing.T) {
@@ -164,6 +182,59 @@ func mockUpstream(t *testing.T, code int, body string) *httptest.Server {
 		w.WriteHeader(code)
 		_, _ = w.Write([]byte(body))
 	}))
+}
+
+// mockUpstreamEchoParam returns the imdb param it received as the source
+// type, so tests can assert which id actually reached the upstream.
+func mockUpstreamEchoParam(t *testing.T) *httptest.Server {
+	t.Helper()
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprintf(w, `{"data":[{"type":%q,"iframeUrl":"https://example.com/a"}]}`, r.URL.Query().Get("imdb"))
+	}))
+}
+
+func TestPlayersNetflixResolvesViaWikidata(t *testing.T) {
+	wd := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		query := r.URL.Query().Get("query")
+		if !strings.Contains(query, "P1874") || !strings.Contains(query, `"80230325"`) {
+			t.Errorf("unexpected sparql query: %s", query)
+		}
+		fmt.Fprintf(w, `{"results":{"bindings":[{"imdb":{"value":"tt8936482"}}]}}`)
+	}))
+	defer wd.Close()
+	up := mockUpstreamEchoParam(t)
+	defer up.Close()
+
+	rec := httptest.NewRecorder()
+	testRoutesWithWikidata(up.URL, wd.URL, t.TempDir()).ServeHTTP(
+		rec, httptest.NewRequest(http.MethodGet, "/api/players?netflix=80230325", nil))
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	var got playersResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatalf("decode players: %v", err)
+	}
+	if len(got.Data) != 1 || got.Data[0].Type != "tt8936482" {
+		t.Fatalf("upstream must receive the resolved imdb id, got %+v", got.Data)
+	}
+}
+
+func TestPlayersNetflixUnresolvedReturns404(t *testing.T) {
+	up := mockUpstream(t, 200, `{"data":[]}`)
+	defer up.Close()
+
+	rec := httptest.NewRecorder()
+	testRoutes(up.URL, t.TempDir()).ServeHTTP(
+		rec, httptest.NewRequest(http.MethodGet, "/api/players?netflix=80230325", nil))
+
+	// testRoutes uses a wikidata mock with empty bindings, so the resolve
+	// fails and the handler must answer 404 without touching the upstream.
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404", rec.Code)
+	}
 }
 
 func TestPlayersProxyFiltersAndTurboLast(t *testing.T) {

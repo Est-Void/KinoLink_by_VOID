@@ -14,6 +14,7 @@ interface MovieRef {
   kinopoisk?: string;     // /^\d{1,20}$/
   imdb?: string;          // /^tt\d{1,20}$/
   tmdb?: string;          // /^\d{1,20}$/
+  netflix?: string;       // /^\d{1,20}$/ (netflix.com/title/<id>)
   type?: 'movie' | 'series'; // default 'movie'
   cover?: string;         // http(s) URL постера, до 8192 символов
   year?: string;          // /^\d{4}$/
@@ -23,6 +24,8 @@ interface MovieRef {
 
 Правила:
 - Хотя бы один внешний ID обязан присутствовать (иначе плееру нечего резолвить).
+- `netflix` — собственный числовой id Netflix. Сервер маппит его в IMDb через
+  Wikidata (P1874 → P345); тайтлы, отсутствующие в Wikidata, отвечают 404.
 - Неизвестные ключи плеер отбрасывает, `type` вне enum → `'movie'`.
 - `title` после trim пустым быть не может.
 - Кодировка `m`: `base64url(UTF-8(JSON))` без паддинга. Почему не plain JSON:
@@ -42,7 +45,8 @@ interface MovieRef {
 
 1. Парсит `m` → невалидно → экран «Откройте страницу фильма и нажмите кнопку».
 2. `GET {same-origin}/api/players?{id}` — id по приоритету
-   `kinopoisk > imdb > tmdb` (см. `pickID` в `server/api.go`).
+   `kinopoisk > imdb > tmdb > netflix` (см. `pickID` в `server/api.go`).
+   `netflix` и `tmdb` предварительно резолвятся в IMDb через Wikidata.
 3. Пустой `data: []` → «Источник не найден».
 4. Ошибка сети/502 → «Источники временно недоступны».
 5. Обложка в списке просмотренных: кросс-доменный `cover` рендерится через
