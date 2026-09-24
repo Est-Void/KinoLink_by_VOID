@@ -3,11 +3,10 @@
 // Branch rule: versions here are always x.y.z-dev (see contract.md).
 // Keep in sync with appVersion in server/main.go (checked in CI).
 
-// 2.0.6-dev: rebuild of the committed dist (2.0.5) with the full userscript
-// header (@noframes, @license, homepage/support) — the bump keeps Tampermonkey
-// auto-update flowing for users already on 2.0.5 (2.0.4-dev would be older).
+// 2.0.7-dev: new sites — Netflix (netflix id -> IMDb via Wikidata P1874) and
+// Rotten Tomatoes (imdb/tmdb id from outgoing links).
 
-export const VERSION = '2.0.6-dev';
+export const VERSION = '2.0.7-dev';
 
 interface Parsed {
 	numbers: number[];

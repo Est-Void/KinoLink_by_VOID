@@ -81,12 +81,28 @@ function attachMainStyleButton(ref: HTMLButtonElement): void {
   const wrapper = document.createElement('div');
   wrapper.className = KP_WRAPPER_CLASS;
   wrapper.style.display = 'inline-flex';
+  wrapper.style.alignItems = 'center';
   wrapper.style.marginRight = '8px';
 
   btn.className = KP_BUTTON_CLASSES;
   btn.setAttribute('aria-pressed', 'false');
+  // Геометрия — из живых стилей соседней кнопки: хэши классов КП протухают
+  // при каждой их пересборке, а computed style всегда актуальный.
+  // Раскладка своя (flex-ряд), чтобы иконка и текст не схлопывались.
+  const computed = getComputedStyle(ref);
+  btn.style.display = 'inline-flex';
+  btn.style.alignItems = 'center';
+  btn.style.justifyContent = 'center';
+  btn.style.gap = '8px';
+  if (computed.height && computed.height !== 'auto') btn.style.height = computed.height;
+  if (computed.borderRadius) btn.style.borderRadius = computed.borderRadius;
+  if (computed.fontSize) btn.style.fontSize = computed.fontSize;
+  if (computed.fontWeight) btn.style.fontWeight = computed.fontWeight;
+  if (computed.paddingLeft) btn.style.paddingLeft = computed.paddingLeft;
+  if (computed.paddingRight) btn.style.paddingRight = computed.paddingRight;
   btn.style.setProperty('background', 'linear-gradient(45deg, #2b0a45 0%, #000000 100%)', 'important');
   btn.style.setProperty('background-color', 'transparent', 'important');
+  btn.style.setProperty('color', '#ffffff', 'important');
 
   const icon = document.createElement('span');
   icon.style.display = 'flex';
@@ -97,8 +113,23 @@ function attachMainStyleButton(ref: HTMLButtonElement): void {
   btn.appendChild(icon);
   btn.appendChild(document.createTextNode('Смотреть'));
   wrapper.appendChild(btn);
-  // Соседом самой кнопки, а не её контейнера — иначе выпадаем из ряда.
-  ref.before(wrapper);
+  // Встаём в ряд действий первым элементом (как в main), а не соседом
+  // самой кнопки: ищем ближайшего предка с несколькими кнопками
+  // (ряд «Оценить | Буду смотреть | …»).
+  kinopoiskActionRow(ref).prepend(wrapper);
+}
+
+// Ряд кнопок действий: ближайший предок, содержащий 2+ кнопок.
+function kinopoiskActionRow(ref: Element): Element {
+  let node: Element | null = ref.parentElement;
+  while (node) {
+    const buttons = node.querySelectorAll(':scope > button, :scope > div > button, :scope > a');
+    if (buttons.length >= 2) return node;
+    // Страховка от ухода слишком высоко: дальше контейнера страницы не лезем.
+    if (node.tagName === 'MAIN' || node.tagName === 'BODY') return ref.parentElement ?? ref;
+    node = node.parentElement;
+  }
+  return ref.parentElement ?? ref;
 }
 
 // IMDb: жёлтая пилюля в духе родной Watchlist-кнопки.
@@ -121,6 +152,31 @@ function attachImdbButton(hero: Element): void {
   btn.innerHTML = playSvg(18, '#000000');
   btn.appendChild(document.createTextNode('Смотреть'));
   hero.after(btn);
+}
+
+// Netflix и Rotten Tomatoes: пилюля в фирменном стиле KinoLink (фиолетовый
+// градиент, рамка и «дыхание» — как на Кинопоиске), красный треугольник —
+// узнаваемый акцент сайта, чтобы кнопка не выглядела чужой на их вёрстке.
+function attachBrandPillButton(after: Element, accent: string): void {
+  injectBreathStyle();
+  const btn = makeButton();
+  btn.style.cssText = [
+    'display:inline-flex',
+    'align-items:center',
+    'gap:8px',
+    'margin:12px 0',
+    'padding:10px 20px',
+    'font-size:15px',
+    'font-weight:700',
+    'color:#fff',
+    'background:linear-gradient(45deg, #2b0a45 0%, #000000 100%)',
+    'border:1px solid #7a2fd0',
+    'border-radius:999px',
+    'cursor:pointer',
+  ].join(';');
+  btn.innerHTML = playSvg(16, accent);
+  btn.appendChild(document.createTextNode('Смотреть'));
+  after.after(btn);
 }
 
 // TMDB: пилюля как «What's your Vibe?» рядом с ней.
@@ -279,6 +335,26 @@ export function ensureButton(site: Site, onClick: () => void): void {
     if (details) {
       attachLetterboxdButton(details);
       logger.info('anchor: lb-details');
+      return;
+    }
+  }
+
+  if (site === 'netflix') {
+    // Netflix title page has a single h1 with the title; DOM classes are
+    // hashed, so the h1 anchor is the most stable one available.
+    const heading = document.querySelector('main h1, h1');
+    if (heading) {
+      attachBrandPillButton(heading, '#e50914'); // red Netflix accent
+      logger.info('anchor: netflix-h1');
+      return;
+    }
+  }
+
+  if (site === 'rottentomatoes') {
+    const heading = document.querySelector('main h1, h1');
+    if (heading) {
+      attachBrandPillButton(heading, '#fa320a'); // tomato red accent
+      logger.info('anchor: rt-h1');
       return;
     }
   }

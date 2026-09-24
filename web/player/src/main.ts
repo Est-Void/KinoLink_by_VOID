@@ -392,17 +392,27 @@ async function init(): Promise<void> {
   el('title').textContent = movie.title;
 
   const params = new URLSearchParams();
-  params.set(
-    movie.kinopoisk ? 'kinopoisk' : movie.imdb ? 'imdb' : 'tmdb',
-    movie.kinopoisk ?? movie.imdb ?? movie.tmdb ?? '',
-  );
+  const idParam = movie.kinopoisk
+    ? 'kinopoisk'
+    : movie.imdb
+      ? 'imdb'
+      : movie.tmdb
+        ? 'tmdb'
+        : 'netflix';
+  params.set(idParam, movie.kinopoisk ?? movie.imdb ?? movie.tmdb ?? movie.netflix ?? '');
   // Hints the server which Wikidata property to try first (TMDB ids collide
   // across movies and series).
-  if (!movie.kinopoisk && !movie.imdb && movie.type) params.set('type', movie.type);
+  if (idParam === 'tmdb' && movie.type) params.set('type', movie.type);
   showHint(L.loading, true);
   let sources: Source[];
   try {
     const res = await fetch(`/api/players?${params.toString()}`);
+    // 404: the id could not be mapped to IMDb (e.g. a Netflix title missing
+    // from Wikidata) — a "not found" screen, not a network failure.
+    if (res.status === 404) {
+      showHint(L.notFound);
+      return;
+    }
     if (!res.ok) throw new Error(`status ${res.status}`);
     const body = (await res.json()) as { data?: Source[] };
     sources = (body.data ?? []).filter(

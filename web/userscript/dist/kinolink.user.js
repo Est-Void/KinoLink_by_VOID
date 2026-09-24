@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         KinoLink by VOID
 // @namespace    kinolink
-// @version      2.0.6-dev
+// @version      2.0.7-dev
 // @author       VOID
 // @description  KinoLink v2 — watch button for Kinopoisk, IMDb, TMDB, Letterboxd
 // @license      MIT
@@ -15,12 +15,15 @@
 // @match        *://www.themoviedb.org/movie/*
 // @match        *://www.themoviedb.org/tv/*
 // @match        *://letterboxd.com/film/*
+// @match        *://www.netflix.com/title/*
+// @match        *://www.rottentomatoes.com/m/*
+// @match        *://www.rottentomatoes.com/tv/*
 // @noframes
 // ==/UserScript==
 
 (function() {
 	"use strict";
-	var VERSION = "2.0.6-dev";
+	var VERSION = "2.0.7-dev";
 	function isDomain(host, domain) {
 		return host === domain || host.endsWith(`.${domain}`);
 	}
@@ -29,6 +32,8 @@
 		if (isDomain(host, "imdb.com") && path.startsWith("/title/tt")) return "imdb";
 		if (isDomain(host, "themoviedb.org") && /^\/(movie|tv)\//.test(path)) return "tmdb";
 		if (isDomain(host, "letterboxd.com") && path.startsWith("/film/")) return "letterboxd";
+		if (isDomain(host, "netflix.com") && /^\/title\/\d+/.test(path)) return "netflix";
+		if (isDomain(host, "rottentomatoes.com") && /^\/(m|tv)\//.test(path)) return "rottentomatoes";
 		return null;
 	}
 	function detectSite() {
@@ -149,26 +154,59 @@
 		const title = ogTitle();
 		if (!title) return null;
 		const cover = pageCover(readJsonLd().image);
-		const links = Array.from(document.querySelectorAll("a[href]"));
-		const imdb = links.find((a) => /imdb\.com\/title\/tt\d+/.test(a.getAttribute("href") ?? ""))?.getAttribute("href")?.match(/\/title\/(tt\d+)/)?.[1];
-		if (imdb) return {
-			imdb,
-			title,
-			cover
-		};
-		const tmdb = links.find((a) => /themoviedb\.org\/(movie|tv)\/\d+/.test(a.getAttribute("href") ?? ""))?.getAttribute("href")?.match(/\/(?:movie|tv)\/(\d+)/)?.[1];
-		if (tmdb) return {
-			tmdb,
+		const ids = idsFromLinks();
+		if (ids.imdb || ids.tmdb) return {
+			...ids,
 			title,
 			cover
 		};
 		return null;
 	}
+	function idsFromLinks() {
+		const links = Array.from(document.querySelectorAll("a[href]"));
+		const imdb = links.find((a) => /imdb\.com\/title\/tt\d+/.test(a.getAttribute("href") ?? ""))?.getAttribute("href")?.match(/\/title\/(tt\d+)/)?.[1];
+		if (imdb) return { imdb };
+		const tmdb = links.find((a) => /themoviedb\.org\/(movie|tv)\/\d+/.test(a.getAttribute("href") ?? ""))?.getAttribute("href")?.match(/\/(?:movie|tv)\/(\d+)/)?.[1];
+		return tmdb ? { tmdb } : {};
+	}
+	function extractNetflix() {
+		const id = location.pathname.match(/^\/title\/(\d+)/)?.[1];
+		if (!id) return null;
+		let title = ogTitle();
+		if (!title) return null;
+		title = title.replace(/^Watch\s+/i, "").replace(/\s*[–|]\s*Netflix\s*$/i, "").trim();
+		if (!title) return null;
+		const html = document.documentElement?.innerHTML ?? "";
+		const year = html.match(/"releaseYear":\s*{\s*"year":\s*(\d{4})/)?.[1];
+		const videoType = html.match(/"videoType":\s*"(movie|show)"/)?.[1];
+		return {
+			netflix: id,
+			title,
+			type: videoType === "show" ? "series" : "movie",
+			year
+		};
+	}
+	function extractRottentomatoes() {
+		const match = location.pathname.match(/^\/(m|tv)\/[a-z0-9_]+/i);
+		if (!match) return null;
+		let title = ogTitle();
+		if (!title) return null;
+		title = title.replace(/\s*[-–|]\s*Rotten Tomatoes\s*$/i, "").trim();
+		if (!title) return null;
+		return {
+			...idsFromLinks(),
+			title,
+			type: match[1] === "tv" ? "series" : "movie",
+			cover: pageCover(readJsonLd().image)
+		};
+	}
 	var extractors = {
 		kinopoisk: extractKinopoisk,
 		imdb: extractImdb,
 		tmdb: extractTmdb,
-		letterboxd: extractLetterboxd
+		letterboxd: extractLetterboxd,
+		netflix: extractNetflix,
+		rottentomatoes: extractRottentomatoes
 	};
 	var logger = {
 		info: (...args) => console.info("[KinoLink]", ...args),
@@ -223,11 +261,24 @@
 		const wrapper = document.createElement("div");
 		wrapper.className = KP_WRAPPER_CLASS;
 		wrapper.style.display = "inline-flex";
+		wrapper.style.alignItems = "center";
 		wrapper.style.marginRight = "8px";
 		btn.className = KP_BUTTON_CLASSES;
 		btn.setAttribute("aria-pressed", "false");
+		const computed = getComputedStyle(ref);
+		btn.style.display = "inline-flex";
+		btn.style.alignItems = "center";
+		btn.style.justifyContent = "center";
+		btn.style.gap = "8px";
+		if (computed.height && computed.height !== "auto") btn.style.height = computed.height;
+		if (computed.borderRadius) btn.style.borderRadius = computed.borderRadius;
+		if (computed.fontSize) btn.style.fontSize = computed.fontSize;
+		if (computed.fontWeight) btn.style.fontWeight = computed.fontWeight;
+		if (computed.paddingLeft) btn.style.paddingLeft = computed.paddingLeft;
+		if (computed.paddingRight) btn.style.paddingRight = computed.paddingRight;
 		btn.style.setProperty("background", "linear-gradient(45deg, #2b0a45 0%, #000000 100%)", "important");
 		btn.style.setProperty("background-color", "transparent", "important");
+		btn.style.setProperty("color", "#ffffff", "important");
 		const icon = document.createElement("span");
 		icon.style.display = "flex";
 		icon.style.alignItems = "center";
@@ -236,7 +287,16 @@
 		btn.appendChild(icon);
 		btn.appendChild(document.createTextNode("Смотреть"));
 		wrapper.appendChild(btn);
-		ref.before(wrapper);
+		kinopoiskActionRow(ref).prepend(wrapper);
+	}
+	function kinopoiskActionRow(ref) {
+		let node = ref.parentElement;
+		while (node) {
+			if (node.querySelectorAll(":scope > button, :scope > div > button, :scope > a").length >= 2) return node;
+			if (node.tagName === "MAIN" || node.tagName === "BODY") return ref.parentElement ?? ref;
+			node = node.parentElement;
+		}
+		return ref.parentElement ?? ref;
 	}
 	function attachImdbButton(hero) {
 		const btn = makeButton();
@@ -257,6 +317,27 @@
 		btn.innerHTML = playSvg(18, "#000000");
 		btn.appendChild(document.createTextNode("Смотреть"));
 		hero.after(btn);
+	}
+	function attachBrandPillButton(after, accent) {
+		injectBreathStyle();
+		const btn = makeButton();
+		btn.style.cssText = [
+			"display:inline-flex",
+			"align-items:center",
+			"gap:8px",
+			"margin:12px 0",
+			"padding:10px 20px",
+			"font-size:15px",
+			"font-weight:700",
+			"color:#fff",
+			"background:linear-gradient(45deg, #2b0a45 0%, #000000 100%)",
+			"border:1px solid #7a2fd0",
+			"border-radius:999px",
+			"cursor:pointer"
+		].join(";");
+		btn.innerHTML = playSvg(16, accent);
+		btn.appendChild(document.createTextNode("Смотреть"));
+		after.after(btn);
 	}
 	function attachTmdbButton(after) {
 		const btn = makeButton();
@@ -400,6 +481,22 @@
 				return;
 			}
 		}
+		if (site === "netflix") {
+			const heading = document.querySelector("main h1, h1");
+			if (heading) {
+				attachBrandPillButton(heading, "#e50914");
+				logger.info("anchor: netflix-h1");
+				return;
+			}
+		}
+		if (site === "rottentomatoes") {
+			const heading = document.querySelector("main h1, h1");
+			if (heading) {
+				attachBrandPillButton(heading, "#fa320a");
+				logger.info("anchor: rt-h1");
+				return;
+			}
+		}
 		const btn = makeButton();
 		logger.warn("no anchor for", site, "— using floating button");
 		styleFallbackButton(btn, true);
@@ -411,6 +508,7 @@
 	var KINOPOISK_RE = /^\d{1,20}$/;
 	var IMDB_RE = /^tt\d{1,20}$/;
 	var TMDB_RE = /^\d{1,20}$/;
+	var NETFLIX_RE = /^\d{1,20}$/;
 	function isRecord(value) {
 		return typeof value === "object" && value !== null && !Array.isArray(value);
 	}
@@ -440,7 +538,12 @@
 			if (!TMDB_RE.test(tmdb)) return null;
 			out.tmdb = tmdb;
 		}
-		if (!out.kinopoisk && !out.imdb && !out.tmdb) return null;
+		const netflix = cleanString(input.netflix);
+		if (netflix) {
+			if (!NETFLIX_RE.test(netflix)) return null;
+			out.netflix = netflix;
+		}
+		if (!out.kinopoisk && !out.imdb && !out.tmdb && !out.netflix) return null;
 		if (input.type === "series" || input.type === "movie") out.type = input.type;
 		const cover = cleanString(input.cover);
 		if (cover && cover.length <= COVER_MAX && (cover.startsWith("http://") || cover.startsWith("https://"))) out.cover = cover;

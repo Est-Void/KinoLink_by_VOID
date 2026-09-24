@@ -19,7 +19,7 @@ const (
 	appName = "kinolink"
 	// Default for dev builds; release CI overrides it with:
 	// go build -ldflags "-X main.appVersion=<version>".
-	appVersion   = "2.0.6-dev"
+	appVersion   = "2.0.7-dev"
 	defaultPort  = 8080
 	proxyTimeout = 8 * time.Second
 )
@@ -34,6 +34,8 @@ type config struct {
 	// cache memoizes successful /api/players answers; routes() fills it in
 	// when zero (keeps direct handler calls in tests cache-free).
 	cache *playersCache
+	// wikidata overrides the SPARQL endpoint; routes() fills the default.
+	wikidata string
 }
 
 func main() {

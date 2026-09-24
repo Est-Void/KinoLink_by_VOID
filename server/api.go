@@ -129,6 +129,9 @@ func routes(cfg config, host string, port int) http.Handler {
 	if cfg.cache == nil {
 		cfg.cache = newPlayersCache()
 	}
+	if cfg.wikidata == "" {
+		cfg.wikidata = wikidataSparqlEndpoint
+	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/status", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
@@ -189,7 +192,7 @@ func playersHandler(w http.ResponseWriter, r *http.Request, cfg config) {
 	q := r.URL.Query()
 	id, kind := pickID(q)
 	if id == "" {
-		writeErrorJSON(w, http.StatusBadRequest, "one of kinopoisk, imdb, tmdb query params is required")
+		writeErrorJSON(w, http.StatusBadRequest, "one of kinopoisk, imdb, tmdb, netflix query params is required")
 		return
 	}
 
@@ -210,11 +213,24 @@ func playersHandler(w http.ResponseWriter, r *http.Request, cfg config) {
 	defer cancel()
 	if kind == "tmdb" {
 		seriesFirst := strings.TrimSpace(q.Get("type")) == "series"
-		if imdb, err := resolveImdbFromTmdb(ctx, client, wikidataSparqlEndpoint, id, seriesFirst); err == nil {
+		if imdb, err := resolveImdbFromTmdb(ctx, client, cfg.wikidata, id, seriesFirst); err == nil {
 			log.Printf("kinolink: resolved tmdb %s -> %s", id, imdb)
 			id, kind = imdb, "imdb"
 		} else {
 			log.Printf("kinolink: tmdb resolve failed for %s: %v", id, err)
+		}
+	}
+	if kind == "netflix" {
+		// Netflix ids are useless upstream, so unlike tmdb there is no
+		// fallback: an unmapped id is a clean 404, the player shows its
+		// "source not found" screen.
+		if imdb, err := resolveImdbFromNetflix(ctx, client, cfg.wikidata, id); err == nil {
+			log.Printf("kinolink: resolved netflix %s -> %s", id, imdb)
+			id, kind = imdb, "imdb"
+		} else {
+			log.Printf("kinolink: netflix resolve failed for %s: %v", id, err)
+			writeErrorJSON(w, http.StatusNotFound, "no imdb mapping for this netflix id")
+			return
 		}
 	}
 
@@ -332,6 +348,9 @@ func pickID(q url.Values) (id, kind string) {
 	}
 	if v := strings.TrimSpace(q.Get("tmdb")); validDigits(v) {
 		return v, "tmdb"
+	}
+	if v := strings.TrimSpace(q.Get("netflix")); validDigits(v) {
+		return v, "netflix"
 	}
 	return "", ""
 }

@@ -11,12 +11,18 @@ describe('siteFor', () => {
 		assert.equal(siteFor('www.themoviedb.org', '/movie/438631'), 'tmdb');
 		assert.equal(siteFor('www.themoviedb.org', '/tv/1399'), 'tmdb');
 		assert.equal(siteFor('letterboxd.com', '/film/dune-2021/'), 'letterboxd');
+		assert.equal(siteFor('www.netflix.com', '/title/81145640'), 'netflix');
+		assert.equal(siteFor('www.rottentomatoes.com', '/m/dune_part_two'), 'rottentomatoes');
+		assert.equal(siteFor('www.rottentomatoes.com', '/tv/squid_game'), 'rottentomatoes');
 	});
 
 	it('requires a matching path for the id-based sites', () => {
 		assert.equal(siteFor('www.imdb.com', '/search/?q=dune'), null);
 		assert.equal(siteFor('www.themoviedb.org', '/person/1'), null);
 		assert.equal(siteFor('letterboxd.com', '/dune-2021/'), null);
+		assert.equal(siteFor('www.netflix.com', '/watch/81145640'), null);
+		assert.equal(siteFor('www.netflix.com', '/latest'), null);
+		assert.equal(siteFor('www.rottentomatoes.com', '/browse/movies_in_theaters'), null);
 	});
 
 	it('rejects lookalike hosts', () => {

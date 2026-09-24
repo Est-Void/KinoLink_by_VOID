@@ -8,6 +8,7 @@ export interface MovieRef {
 	kinopoisk?: string;
 	imdb?: string;
 	tmdb?: string;
+	netflix?: string;
 	type?: 'movie' | 'series';
 	cover?: string;
 	year?: string;
@@ -22,6 +23,9 @@ const COVER_MAX = 8192;
 const KINOPOISK_RE = /^\d{1,20}$/;
 const IMDB_RE = /^tt\d{1,20}$/;
 const TMDB_RE = /^\d{1,20}$/;
+// Netflix uses its own numeric ids (netflix.com/title/81145640). The server
+// maps them to IMDb via Wikidata property P1874.
+const NETFLIX_RE = /^\d{1,20}$/;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -55,7 +59,12 @@ export function parseMovieRef(input: unknown): MovieRef | null {
 		if (!TMDB_RE.test(tmdb)) return null;
 		out.tmdb = tmdb;
 	}
-	if (!out.kinopoisk && !out.imdb && !out.tmdb) return null;
+	const netflix = cleanString(input.netflix);
+	if (netflix) {
+		if (!NETFLIX_RE.test(netflix)) return null;
+		out.netflix = netflix;
+	}
+	if (!out.kinopoisk && !out.imdb && !out.tmdb && !out.netflix) return null;
 
 	if (input.type === 'series' || input.type === 'movie') out.type = input.type;
 
