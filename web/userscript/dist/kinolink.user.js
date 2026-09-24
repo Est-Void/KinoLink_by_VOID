@@ -261,11 +261,24 @@
 		const wrapper = document.createElement("div");
 		wrapper.className = KP_WRAPPER_CLASS;
 		wrapper.style.display = "inline-flex";
+		wrapper.style.alignItems = "center";
 		wrapper.style.marginRight = "8px";
 		btn.className = KP_BUTTON_CLASSES;
 		btn.setAttribute("aria-pressed", "false");
+		const computed = getComputedStyle(ref);
+		btn.style.display = "inline-flex";
+		btn.style.alignItems = "center";
+		btn.style.justifyContent = "center";
+		btn.style.gap = "8px";
+		if (computed.height && computed.height !== "auto") btn.style.height = computed.height;
+		if (computed.borderRadius) btn.style.borderRadius = computed.borderRadius;
+		if (computed.fontSize) btn.style.fontSize = computed.fontSize;
+		if (computed.fontWeight) btn.style.fontWeight = computed.fontWeight;
+		if (computed.paddingLeft) btn.style.paddingLeft = computed.paddingLeft;
+		if (computed.paddingRight) btn.style.paddingRight = computed.paddingRight;
 		btn.style.setProperty("background", "linear-gradient(45deg, #2b0a45 0%, #000000 100%)", "important");
 		btn.style.setProperty("background-color", "transparent", "important");
+		btn.style.setProperty("color", "#ffffff", "important");
 		const icon = document.createElement("span");
 		icon.style.display = "flex";
 		icon.style.alignItems = "center";
@@ -274,7 +287,16 @@
 		btn.appendChild(icon);
 		btn.appendChild(document.createTextNode("Смотреть"));
 		wrapper.appendChild(btn);
-		ref.before(wrapper);
+		kinopoiskActionRow(ref).prepend(wrapper);
+	}
+	function kinopoiskActionRow(ref) {
+		let node = ref.parentElement;
+		while (node) {
+			if (node.querySelectorAll(":scope > button, :scope > div > button, :scope > a").length >= 2) return node;
+			if (node.tagName === "MAIN" || node.tagName === "BODY") return ref.parentElement ?? ref;
+			node = node.parentElement;
+		}
+		return ref.parentElement ?? ref;
 	}
 	function attachImdbButton(hero) {
 		const btn = makeButton();

@@ -81,12 +81,28 @@ function attachMainStyleButton(ref: HTMLButtonElement): void {
   const wrapper = document.createElement('div');
   wrapper.className = KP_WRAPPER_CLASS;
   wrapper.style.display = 'inline-flex';
+  wrapper.style.alignItems = 'center';
   wrapper.style.marginRight = '8px';
 
   btn.className = KP_BUTTON_CLASSES;
   btn.setAttribute('aria-pressed', 'false');
+  // Геометрия — из живых стилей соседней кнопки: хэши классов КП протухают
+  // при каждой их пересборке, а computed style всегда актуальный.
+  // Раскладка своя (flex-ряд), чтобы иконка и текст не схлопывались.
+  const computed = getComputedStyle(ref);
+  btn.style.display = 'inline-flex';
+  btn.style.alignItems = 'center';
+  btn.style.justifyContent = 'center';
+  btn.style.gap = '8px';
+  if (computed.height && computed.height !== 'auto') btn.style.height = computed.height;
+  if (computed.borderRadius) btn.style.borderRadius = computed.borderRadius;
+  if (computed.fontSize) btn.style.fontSize = computed.fontSize;
+  if (computed.fontWeight) btn.style.fontWeight = computed.fontWeight;
+  if (computed.paddingLeft) btn.style.paddingLeft = computed.paddingLeft;
+  if (computed.paddingRight) btn.style.paddingRight = computed.paddingRight;
   btn.style.setProperty('background', 'linear-gradient(45deg, #2b0a45 0%, #000000 100%)', 'important');
   btn.style.setProperty('background-color', 'transparent', 'important');
+  btn.style.setProperty('color', '#ffffff', 'important');
 
   const icon = document.createElement('span');
   icon.style.display = 'flex';
@@ -97,8 +113,23 @@ function attachMainStyleButton(ref: HTMLButtonElement): void {
   btn.appendChild(icon);
   btn.appendChild(document.createTextNode('Смотреть'));
   wrapper.appendChild(btn);
-  // Соседом самой кнопки, а не её контейнера — иначе выпадаем из ряда.
-  ref.before(wrapper);
+  // Встаём в ряд действий первым элементом (как в main), а не соседом
+  // самой кнопки: ищем ближайшего предка с несколькими кнопками
+  // (ряд «Оценить | Буду смотреть | …»).
+  kinopoiskActionRow(ref).prepend(wrapper);
+}
+
+// Ряд кнопок действий: ближайший предок, содержащий 2+ кнопок.
+function kinopoiskActionRow(ref: Element): Element {
+  let node: Element | null = ref.parentElement;
+  while (node) {
+    const buttons = node.querySelectorAll(':scope > button, :scope > div > button, :scope > a');
+    if (buttons.length >= 2) return node;
+    // Страховка от ухода слишком высоко: дальше контейнера страницы не лезем.
+    if (node.tagName === 'MAIN' || node.tagName === 'BODY') return ref.parentElement ?? ref;
+    node = node.parentElement;
+  }
+  return ref.parentElement ?? ref;
 }
 
 // IMDb: жёлтая пилюля в духе родной Watchlist-кнопки.
